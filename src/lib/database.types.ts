@@ -109,6 +109,8 @@ export interface Database {
           email: string | null;
           address: string | null;
           notes: string | null;
+          blacklisted: boolean;
+          blacklist_reason: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -121,6 +123,8 @@ export interface Database {
           email?: string | null;
           address?: string | null;
           notes?: string | null;
+          blacklisted?: boolean;
+          blacklist_reason?: string | null;
           created_at?: string;
           updated_at?: string;
         };

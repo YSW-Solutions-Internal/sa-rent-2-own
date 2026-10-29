@@ -31,7 +31,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
         )
         .order("start_date", { ascending: false }),
       supabase.from("vehicles").select("id, file_no, make, model, year, status, next_service_date"),
-      supabase.from("clients").select("id, full_name").order("full_name"),
+      supabase.from("clients").select("id, full_name, blacklisted").order("full_name"),
       supabase.from("vehicle_registrations").select("vehicle_id, plate_number").is("effective_to", null),
     ]);
 
@@ -43,6 +43,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
 
   const vehicleById = new Map((vehicles ?? []).map((v) => [v.id, v]));
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.full_name]));
+  const blacklistedClientIds = new Set((clients ?? []).filter((c) => c.blacklisted).map((c) => c.id));
 
   const activeVehicleIds = new Set(
     (contracts ?? []).filter((c) => c.status === "active").map((c) => c.vehicle_id)
@@ -55,6 +56,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
   const selectableClients: SelectableClient[] = (clients ?? []).map((c) => ({
     id: c.id,
     label: c.full_name,
+    blacklisted: c.blacklisted,
   }));
 
   // Fleet Managers must not see prices — null them here, server-side, so
@@ -69,6 +71,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
       potential_sale_price: showPrices ? c.potential_sale_price : null,
       vehicleLabel: vehicle ? vehicleLabel(vehicle) : "Unknown vehicle",
       clientName: clientById.get(c.client_id) ?? "Unknown client",
+      clientBlacklisted: blacklistedClientIds.has(c.client_id),
     };
   });
 

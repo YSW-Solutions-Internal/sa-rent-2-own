@@ -37,6 +37,7 @@ export interface ContractWithDetails {
 export interface ContractRow extends ContractWithDetails {
   vehicleLabel: string;
   clientName: string;
+  clientBlacklisted: boolean;
 }
 
 export interface SelectableVehicle {
@@ -47,4 +48,5 @@ export interface SelectableVehicle {
 export interface SelectableClient {
   id: string;
   label: string;
+  blacklisted?: boolean;
 }

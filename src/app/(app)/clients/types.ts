@@ -9,6 +9,8 @@ export interface ClientWithBanking {
   email: string | null;
   address: string | null;
   notes: string | null;
+  blacklisted: boolean;
+  blacklist_reason: string | null;
   banking: {
     id: string;
     bank_name: string;

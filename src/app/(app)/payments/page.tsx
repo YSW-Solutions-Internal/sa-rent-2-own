@@ -118,7 +118,7 @@ export default async function PaymentsPage() {
     supabase
       .from("contracts")
       .select("id, deal_number, client_id, vehicle_id, payment_method, outstanding_balance"),
-    supabase.from("clients").select("id, full_name"),
+    supabase.from("clients").select("id, full_name, blacklisted"),
     supabase.from("vehicle_registrations").select("vehicle_id, plate_number").is("effective_to", null),
   ]);
 
@@ -130,6 +130,7 @@ export default async function PaymentsPage() {
   const dealNumberByContract = new Map((contracts ?? []).map((c) => [c.id, c.deal_number]));
   const clientIdByContract = new Map((contracts ?? []).map((c) => [c.id, c.client_id]));
   const clientNameById = new Map((clients ?? []).map((c) => [c.id, c.full_name]));
+  const blacklistedClientIds = new Set((clients ?? []).filter((c) => c.blacklisted).map((c) => c.id));
   const vehicleIdByContract = new Map((contracts ?? []).map((c) => [c.id, c.vehicle_id]));
   const paymentMethodByContract = new Map((contracts ?? []).map((c) => [c.id, c.payment_method]));
   const outstandingBalanceByContract = new Map((contracts ?? []).map((c) => [c.id, c.outstanding_balance]));
@@ -181,6 +182,7 @@ export default async function PaymentsPage() {
     contractId,
     dealNumber: dealNumberByContract.get(contractId) ?? null,
     clientName: clientNameById.get(clientIdByContract.get(contractId) ?? "") ?? "Unknown client",
+    clientBlacklisted: blacklistedClientIds.has(clientIdByContract.get(contractId) ?? ""),
     lastTransactionDate: agg.lastDate,
     lastStatus: agg.lastType === "debit_note" ? "reversed" : "cleared",
     netCollected: agg.netCollected,
@@ -228,6 +230,7 @@ export default async function PaymentsPage() {
       contractId,
       dealNumber: dealNumberByContract.get(contractId) ?? null,
       clientName: clientNameById.get(clientIdByContract.get(contractId) ?? "") ?? "Unknown client",
+      clientBlacklisted: blacklistedClientIds.has(clientIdByContract.get(contractId) ?? ""),
       reg: plateByVehicle.get(vehicleIdByContract.get(contractId) ?? "") ?? null,
       vehicleId: vehicleIdByContract.get(contractId) ?? null,
       outstandingBalance: showFinancials ? (outstandingBalanceByContract.get(contractId) ?? null) : null,
@@ -246,6 +249,7 @@ export default async function PaymentsPage() {
     transactionDate: t.transaction_date,
     dealNumber: dealNumberByContract.get(t.contract_id) ?? null,
     clientName: clientNameById.get(clientIdByContract.get(t.contract_id) ?? "") ?? "Unknown client",
+    clientBlacklisted: blacklistedClientIds.has(clientIdByContract.get(t.contract_id) ?? ""),
     reg: plateByVehicle.get(vehicleIdByContract.get(t.contract_id) ?? "") ?? null,
     vehicleId: vehicleIdByContract.get(t.contract_id) ?? null,
     type: t.type,

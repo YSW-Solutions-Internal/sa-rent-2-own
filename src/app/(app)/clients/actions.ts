@@ -13,6 +13,7 @@ export interface ActionResult {
 }
 
 function toClientRow(values: ClientFormValues) {
+  const blacklisted = Boolean(values.blacklisted);
   return {
     full_name: values.fullName,
     id_number: values.idNumber || null,
@@ -21,6 +22,8 @@ function toClientRow(values: ClientFormValues) {
     email: values.email || null,
     address: values.address || null,
     notes: values.notes || null,
+    blacklisted,
+    blacklist_reason: blacklisted ? values.blacklistReason?.trim() || null : null,
   };
 }
 

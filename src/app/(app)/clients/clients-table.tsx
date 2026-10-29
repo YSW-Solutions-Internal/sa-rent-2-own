@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { useCallback, useRef, useState } from "react";
 import { Download } from "lucide-react";
 
@@ -106,6 +107,7 @@ export function ClientsTable({
   function handleExport() {
     const columns: ExportColumn<ClientWithBanking>[] = [
       { header: "Name", value: (c) => c.full_name },
+      { header: "Blacklisted", value: (c) => (c.blacklisted ? "Yes" : "") },
       { header: "Cell number", value: (c) => formatSaPhoneForDisplay(c.cell_number) },
       { header: "ID number", value: (c) => c.id_number ?? "" },
       {
@@ -212,7 +214,7 @@ export function ClientsTable({
                     <span className="text-muted-foreground flex-1 text-center">{index + 1}</span>
                   </div>
                 </TableCell>
-                <TableCell className="font-medium">{client.full_name}</TableCell>
+                <TableCell className="font-medium"><ClientName name={client.full_name} blacklisted={client.blacklisted} /></TableCell>
                 <TableCell>{formatSaPhoneForDisplay(client.cell_number)}</TableCell>
                 <TableCell>{client.id_number ?? "—"}</TableCell>
                 <TableCell>
@@ -264,7 +266,7 @@ export function ClientsTable({
           <TableBody>
             {selectedRows.map((client) => (
               <TableRow key={client.id}>
-                <TableCell className="font-medium">{client.full_name}</TableCell>
+                <TableCell className="font-medium"><ClientName name={client.full_name} blacklisted={client.blacklisted} /></TableCell>
                 <TableCell>{formatSaPhoneForDisplay(client.cell_number)}</TableCell>
                 <TableCell>{client.id_number ?? "—"}</TableCell>
                 <TableCell>{bankingLabel(client)}</TableCell>

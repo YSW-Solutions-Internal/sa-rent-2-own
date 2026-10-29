@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,7 @@ export function VehicleContractHistorySection({ vehicleId }: { vehicleId: string
               {entries.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell>{entry.deal_number ?? "—"}</TableCell>
-                  <TableCell>{entry.client_name}</TableCell>
+                  <TableCell><ClientName name={entry.client_name} blacklisted={entry.client_blacklisted} /></TableCell>
                   <TableCell>
                     <Badge variant={entry.effective_to ? "outline" : "success"}>
                       {entry.contract_status}

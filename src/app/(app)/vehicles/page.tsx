@@ -67,8 +67,8 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
         ? supabase.from("contracts").select("vehicle_id, client_id").neq("status", "active")
         : Promise.resolve({ data: [] as PastContractRow[] }),
       canSeeContracts
-        ? supabase.from("clients").select("id, full_name, cell_number")
-        : Promise.resolve({ data: [] as { id: string; full_name: string; cell_number: string }[] }),
+        ? supabase.from("clients").select("id, full_name, cell_number, blacklisted")
+        : Promise.resolve({ data: [] as { id: string; full_name: string; cell_number: string; blacklisted: boolean }[] }),
     ]);
 
   const clientById = new Map((clients ?? []).map((c) => [c.id, c]));
@@ -91,6 +91,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
       ...v,
       current_plate: plateByVehicle.get(v.id) ?? null,
       current_client_name: client?.full_name ?? null,
+      current_client_blacklisted: client?.blacklisted ?? false,
       current_client_cell: client?.cell_number ?? null,
       current_contract_start_date: activeContract?.start_date ?? null,
       current_contract_end_date: activeContract?.end_date ?? null,

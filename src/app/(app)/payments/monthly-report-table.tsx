@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { useCallback, useRef, useState } from "react";
 import { Download } from "lucide-react";
 
@@ -128,7 +129,7 @@ export function MonthlyReportTable({
   function handleExport() {
     const columns: ExportColumn<ContractMonthlyReportRow>[] = [
       { header: "Deal number", value: (r) => r.dealNumber ?? "" },
-      { header: "Client", value: (r) => r.clientName },
+      { header: "Client", value: (r) => (r.clientBlacklisted ? `${r.clientName} (BLACKLISTED)` : r.clientName) },
       { header: "Reg", value: (r) => r.reg ?? "" },
       ...(showOutstanding
         ? [
@@ -357,7 +358,7 @@ export function MonthlyReportTable({
                     {row.dealNumber ?? "—"}
                   </TableCell>
                   <TableCell className={showOutstanding ? FROZEN_CLIENT : undefined} title={row.clientName}>
-                    {row.clientName}
+                    <ClientName name={row.clientName} blacklisted={row.clientBlacklisted} />
                   </TableCell>
                   <TableCell className={showOutstanding ? FROZEN_REG : undefined} title={row.reg ?? undefined}>
                     <RegButton
@@ -414,7 +415,7 @@ export function MonthlyReportTable({
             {selectedRows.map((row) => (
               <TableRow key={row.contractId}>
                 <TableCell>{row.dealNumber ?? "—"}</TableCell>
-                <TableCell>{row.clientName}</TableCell>
+                <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                 <TableCell>{row.reg ?? "—"}</TableCell>
                 {showOutstanding && (
                   <TableCell className="text-right font-medium tabular-nums">

@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { useCallback, useRef, useState } from "react";
 import { Download } from "lucide-react";
 
@@ -113,7 +114,7 @@ export function TransactionsTable({ rows, exportedBy }: { rows: PaymentTransacti
     const columns: ExportColumn<PaymentTransactionRow>[] = [
       { header: "Date", value: (r) => r.transactionDate },
       { header: "Deal number", value: (r) => r.dealNumber ?? "" },
-      { header: "Client", value: (r) => r.clientName },
+      { header: "Client", value: (r) => (r.clientBlacklisted ? `${r.clientName} (BLACKLISTED)` : r.clientName) },
       { header: "Reg", value: (r) => r.reg ?? "" },
       { header: "Type", value: (r) => TYPE_LABELS[r.type] },
       { header: "Reference", value: (r) => r.reference },
@@ -238,7 +239,7 @@ export function TransactionsTable({ rows, exportedBy }: { rows: PaymentTransacti
                   </TableCell>
                   <TableCell>{formatDisplayDate(row.transactionDate)}</TableCell>
                   <TableCell>{row.dealNumber ?? "—"}</TableCell>
-                  <TableCell>{row.clientName}</TableCell>
+                  <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                   <TableCell>
                     <RegButton
                       reg={row.reg}
@@ -289,7 +290,7 @@ export function TransactionsTable({ rows, exportedBy }: { rows: PaymentTransacti
               <TableRow key={row.id}>
                 <TableCell>{formatDisplayDate(row.transactionDate)}</TableCell>
                 <TableCell>{row.dealNumber ?? "—"}</TableCell>
-                <TableCell>{row.clientName}</TableCell>
+                <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                 <TableCell>{row.reg ?? "—"}</TableCell>
                 <TableCell>{TYPE_LABELS[row.type]}</TableCell>
                 <TableCell>{row.invoiceReference}</TableCell>

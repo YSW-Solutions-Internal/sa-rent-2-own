@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { memo, useCallback, useMemo, useRef, useState, useTransition } from "react";
 import {
   DndContext,
@@ -502,7 +503,11 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
     case "legacyStatusNote":
       return vehicle.legacy_status_note ?? "—";
     case "client":
-      return vehicle.current_client_name ?? "—";
+      return vehicle.current_client_name ? (
+        <ClientName name={vehicle.current_client_name} blacklisted={vehicle.current_client_blacklisted} />
+      ) : (
+        "—"
+      );
     case "nextService":
       return <ServiceCountdown date={vehicle.next_service_date} />;
     case "nextServiceDate":

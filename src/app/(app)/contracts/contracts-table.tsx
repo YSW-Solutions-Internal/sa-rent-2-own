@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { useCallback, useRef, useState } from "react";
 import { Download } from "lucide-react";
 
@@ -168,7 +169,7 @@ export function ContractsTable({
     const columns: ExportColumn<ContractRow>[] = [
       { header: "Deal number", value: (r) => r.deal_number ?? "" },
       { header: "Vehicle", value: (r) => r.vehicleLabel },
-      { header: "Client", value: (r) => r.clientName },
+      { header: "Client", value: (r) => (r.clientBlacklisted ? `${r.clientName} (BLACKLISTED)` : r.clientName) },
       { header: "Type", value: (r) => TYPE_LABELS[r.contract_type] },
       {
         header: "Status",
@@ -330,7 +331,7 @@ export function ContractsTable({
                 </TableCell>
                 <TableCell>{row.deal_number ?? "—"}</TableCell>
                 <TableCell className="font-medium">{row.vehicleLabel}</TableCell>
-                <TableCell>{row.clientName}</TableCell>
+                <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                 <TableCell className="capitalize">{row.contract_type.replace(/_/g, " ")}</TableCell>
                 <TableCell>
                   <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABELS[row.status]}</Badge>
@@ -397,7 +398,7 @@ export function ContractsTable({
               <TableRow key={row.id}>
                 <TableCell>{row.deal_number ?? "—"}</TableCell>
                 <TableCell className="font-medium">{row.vehicleLabel}</TableCell>
-                <TableCell>{row.clientName}</TableCell>
+                <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                 <TableCell className="capitalize">{row.contract_type.replace(/_/g, " ")}</TableCell>
                 <TableCell>{STATUS_LABELS[row.status]}</TableCell>
                 <TableCell>

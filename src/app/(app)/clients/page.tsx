@@ -20,7 +20,7 @@ export default async function ClientsPage() {
   const [{ data: clients }, { data: banking }] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, full_name, id_number, cell_number, alt_cell_number, email, address, notes")
+      .select("id, full_name, id_number, cell_number, alt_cell_number, email, address, notes, blacklisted, blacklist_reason")
       .order("full_name"),
     supabase
       .from("client_banking_details")

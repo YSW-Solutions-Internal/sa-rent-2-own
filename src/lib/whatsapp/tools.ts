@@ -71,12 +71,14 @@ async function describeVehicles(vehicles: VehicleRow[], ctx: ToolContext) {
       .eq("status", "active");
     const clientIds = [...new Set((contracts ?? []).map((c) => c.client_id))];
     const { data: clients } = clientIds.length
-      ? await db.from("clients").select("id, full_name").in("id", clientIds)
+      ? await db.from("clients").select("id, full_name, blacklisted").in("id", clientIds)
       : { data: [] };
     const nameById = new Map((clients ?? []).map((c) => [c.id, c.full_name]));
+    const blacklistedIds = new Set((clients ?? []).filter((c) => c.blacklisted).map((c) => c.id));
     for (const c of contracts ?? []) {
       contractByVehicle.set(c.vehicle_id, {
         client: nameById.get(c.client_id) ?? null,
+        ...(blacklistedIds.has(c.client_id) ? { client_blacklisted: true } : {}),
         type: c.contract_type,
         deal_number: c.deal_number,
         contract_end_date: c.end_date,

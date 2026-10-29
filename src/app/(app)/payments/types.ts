@@ -2,6 +2,7 @@ export interface ContractPaymentSummaryRow {
   contractId: string;
   dealNumber: string | null;
   clientName: string;
+  clientBlacklisted: boolean;
   lastTransactionDate: string;
   lastStatus: "cleared" | "reversed";
   netCollected: number;
@@ -32,6 +33,7 @@ export interface ContractMonthlyReportRow {
   contractId: string;
   dealNumber: string | null;
   clientName: string;
+  clientBlacklisted: boolean;
   reg: string | null;
   vehicleId: string | null;
   /** The contract's outstanding balance (contracts.outstanding_balance) — admin only, null for Fleet Managers. */
@@ -46,6 +48,7 @@ export interface PaymentTransactionRow {
   transactionDate: string;
   dealNumber: string | null;
   clientName: string;
+  clientBlacklisted: boolean;
   reg: string | null;
   vehicleId: string | null;
   type: "receipt" | "debit_note";

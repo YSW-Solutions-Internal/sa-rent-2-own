@@ -10,6 +10,8 @@ export const clientFormSchema = z.object({
   email: z.string().optional(),
   address: z.string().optional(),
   notes: z.string().optional(),
+  blacklisted: z.boolean().optional(),
+  blacklistReason: z.string().optional(),
 
   // Banking — all optional. Leave account holder/number blank on an edit
   // to keep whatever's already on file; fill them in to add or replace it.

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useControllableOpen } from "@/lib/use-controllable-open";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { BlacklistFlag } from "@/components/blacklist-flag";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -59,6 +61,8 @@ function toFormValues(client?: ClientWithBanking): ClientFormValues {
     email: client.email ?? undefined,
     address: client.address ?? undefined,
     notes: client.notes ?? undefined,
+    blacklisted: client.blacklisted,
+    blacklistReason: client.blacklist_reason ?? undefined,
     bankName: undefined,
     accountType: undefined,
     branchCode: undefined,
@@ -124,6 +128,8 @@ export function ClientPanel({
     resolver: zodResolver(clientFormSchema),
     defaultValues: toFormValues(client),
   });
+
+  const blacklisted = useWatch({ control: form.control, name: "blacklisted" });
 
   function onSubmit(values: ClientFormValues) {
     startTransition(async () => {
@@ -267,6 +273,39 @@ export function ClientPanel({
                   </FormItem>
                 )}
               />
+            </section>
+
+            <section className="grid gap-4 sm:grid-cols-2">
+              <h3 className="col-span-full flex items-center gap-1.5 text-xs font-semibold tracking-wide text-red-600 uppercase">
+                <BlacklistFlag /> Blacklist
+              </h3>
+              <FormField
+                control={form.control}
+                name="blacklisted"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2 sm:col-span-2">
+                    <FormControl>
+                      <Checkbox checked={Boolean(field.value)} onCheckedChange={(v) => field.onChange(v === true)} />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Blacklist this client</FormLabel>
+                  </FormItem>
+                )}
+              />
+              {blacklisted && (
+                <FormField
+                  control={form.control}
+                  name="blacklistReason"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Reason</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} value={field.value ?? ""} placeholder="Why is this client blacklisted?" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </section>
 
             <section className="grid gap-4 sm:grid-cols-2">

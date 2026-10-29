@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -251,7 +252,7 @@ export function ContractPanel({
                       <SelectContent>
                         {clientOptions.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.label}
+                            <ClientName name={c.label} blacklisted={c.blacklisted} />
                           </SelectItem>
                         ))}
                       </SelectContent>

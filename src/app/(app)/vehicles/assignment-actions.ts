@@ -9,6 +9,7 @@ export interface VehicleContractHistoryEntry {
   deal_number: string | null;
   contract_status: string;
   client_name: string;
+  client_blacklisted: boolean;
 }
 
 export async function listVehicleContractHistory(
@@ -33,11 +34,12 @@ export async function listVehicleContractHistory(
   const clientIds = [...new Set((contracts ?? []).map((c) => c.client_id))];
   const { data: clients } = await supabase
     .from("clients")
-    .select("id, full_name")
+    .select("id, full_name, blacklisted")
     .in("id", clientIds);
 
   const contractById = new Map((contracts ?? []).map((c) => [c.id, c]));
   const clientNameById = new Map((clients ?? []).map((c) => [c.id, c.full_name]));
+  const blacklistedClientIds = new Set((clients ?? []).filter((c) => c.blacklisted).map((c) => c.id));
 
   const rows: VehicleContractHistoryEntry[] = assignments.map((a) => {
     const contract = contractById.get(a.contract_id);
@@ -48,6 +50,7 @@ export async function listVehicleContractHistory(
       deal_number: contract?.deal_number ?? null,
       contract_status: contract?.status ?? "—",
       client_name: contract ? (clientNameById.get(contract.client_id) ?? "Unknown client") : "Unknown client",
+      client_blacklisted: contract ? blacklistedClientIds.has(contract.client_id) : false,
     };
   });
 

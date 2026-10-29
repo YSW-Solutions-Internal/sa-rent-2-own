@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientName } from "@/components/blacklist-flag";
 import { useCallback } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -109,7 +110,7 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
               filteredRows.map((row) => (
                 <TableRow key={row.contractId}>
                   <TableCell>{row.dealNumber ?? "—"}</TableCell>
-                  <TableCell>{row.clientName}</TableCell>
+                  <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                   <TableCell>{formatDisplayDate(row.lastTransactionDate)}</TableCell>
                   <TableCell>
                     {row.lastStatus === "cleared" ? (
