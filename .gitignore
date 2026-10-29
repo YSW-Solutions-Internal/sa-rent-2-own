@@ -47,3 +47,7 @@ next-env.d.ts
 
 # DB sync: local backups and connection strings
 /backups/
+
+# One-off scripts with client data typed in
+scripts/apply-followup-answers.mjs
+scripts/build-followup-2.mjs
