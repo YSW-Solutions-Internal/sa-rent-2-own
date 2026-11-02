@@ -51,3 +51,4 @@ next-env.d.ts
 # One-off scripts with client data typed in
 scripts/apply-followup-answers.mjs
 scripts/build-followup-2.mjs
+scripts/apply-followup-answers-2.mjs
