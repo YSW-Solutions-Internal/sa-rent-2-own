@@ -49,8 +49,11 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
     (contracts ?? []).filter((c) => c.status === "active").map((c) => c.vehicle_id)
   );
 
+  // Available for a new contract: no active contract, and not already sold,
+  // written off or at end of deal.
+  const UNAVAILABLE_STATUSES = new Set(["sold", "written_off", "end_of_deal"]);
   const selectableVehicles: SelectableVehicle[] = (vehicles ?? [])
-    .filter((v) => !activeVehicleIds.has(v.id))
+    .filter((v) => !activeVehicleIds.has(v.id) && !UNAVAILABLE_STATUSES.has(v.status))
     .map((v) => ({ id: v.id, label: vehicleLabel(v) }));
 
   const selectableClients: SelectableClient[] = (clients ?? []).map((c) => ({

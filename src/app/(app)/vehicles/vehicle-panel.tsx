@@ -89,11 +89,14 @@ export function VehiclePanel({
   canManage = true,
   open: openProp,
   onOpenChange: onOpenChangeProp,
+  onCreated,
 }: {
   vehicle?: VehicleWithRegistration;
   canManage?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Called after a new vehicle is saved (not on edits), e.g. to select it in another form. */
+  onCreated?: (id: string, values: VehicleFormValues) => void;
 }) {
   const { open, setOpen, isControlled } = useControllableOpen(openProp, onOpenChangeProp);
   const [isPending, startTransition] = useTransition();
@@ -116,6 +119,7 @@ export function VehiclePanel({
       }
 
       toast.success(isEditing ? "Vehicle updated" : "Vehicle added");
+      if (!isEditing && result.id) onCreated?.(result.id, values);
       setOpen(false);
       form.reset(toFormValues(undefined));
     });

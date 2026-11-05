@@ -113,12 +113,15 @@ export function ClientPanel({
   readOnly = false,
   open: openProp,
   onOpenChange: onOpenChangeProp,
+  onCreated,
 }: {
   client?: ClientWithBanking;
   /** View-only (Fleet Manager): fields disabled, no Save, no banking Reveal. */
   readOnly?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Called after a new client is saved (not on edits), e.g. to select it in another form. */
+  onCreated?: (id: string, values: ClientFormValues) => void;
 }) {
   const { open, setOpen, isControlled } = useControllableOpen(openProp, onOpenChangeProp);
   const [isPending, startTransition] = useTransition();
@@ -143,6 +146,7 @@ export function ClientPanel({
       }
 
       toast.success(isEditing ? "Client updated" : "Client added");
+      if (!isEditing && result.id) onCreated?.(result.id, values);
       setOpen(false);
       form.reset(toFormValues(undefined));
     });

@@ -11,6 +11,8 @@ import { vehicleFormSchema, vehicleStatusValues, type VehicleFormValues } from "
 
 export interface ActionResult {
   error?: string;
+  /** Set by create actions: the new record's id. */
+  id?: string;
 }
 
 function toInt(value: string | undefined): number | null {
@@ -73,7 +75,8 @@ export async function createVehicle(raw: VehicleFormValues): Promise<ActionResul
   }
 
   revalidatePath("/vehicles");
-  return {};
+  revalidatePath("/contracts");
+  return { id: vehicle.id };
 }
 
 export async function updateVehicle(

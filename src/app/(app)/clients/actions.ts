@@ -10,6 +10,8 @@ import { clientFormSchema, type ClientFormValues } from "./schema";
 
 export interface ActionResult {
   error?: string;
+  /** Set by create actions: the new record's id. */
+  id?: string;
 }
 
 function toClientRow(values: ClientFormValues) {
@@ -102,7 +104,8 @@ export async function createClient(raw: ClientFormValues): Promise<ActionResult>
   }
 
   revalidatePath("/clients");
-  return {};
+  revalidatePath("/contracts");
+  return { id: client.id };
 }
 
 export async function updateClient(

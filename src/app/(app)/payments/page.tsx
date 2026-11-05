@@ -122,7 +122,7 @@ export default async function PaymentsPage() {
     supabase.from("vehicle_registrations").select("vehicle_id, plate_number").is("effective_to", null),
     // Per-month totals come pre-aggregated from a view (every month, not just the latest 12).
     showFinancials
-      ? supabase.from("payment_monthly_totals").select("month, collected, reversed, net").order("month")
+      ? supabase.from("payment_monthly_totals").select("month, collected, reversed, net").order("month", { ascending: false })
       : Promise.resolve({ data: [] as { month: string; collected: number; reversed: number; net: number }[] }),
   ]);
 

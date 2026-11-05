@@ -1,7 +1,7 @@
 "use client";
 
 import { ClientName } from "@/components/blacklist-flag";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
@@ -35,6 +35,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ClientPanel } from "../clients/client-panel";
+import { VehiclePanel } from "../vehicles/vehicle-panel";
 import { Textarea } from "@/components/ui/textarea";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
@@ -146,6 +149,14 @@ export function ContractPanel({
   const [isPending, startTransition] = useTransition();
   const isEditing = Boolean(contract);
 
+  // "Add new vehicle / client" open their normal forms on top of this one.
+  // What gets created is added to the lists here straight away and selected,
+  // without waiting for the page data to refresh.
+  const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
+  const [clientFormOpen, setClientFormOpen] = useState(false);
+  const [newVehicles, setNewVehicles] = useState<SelectableVehicle[]>([]);
+  const [newClients, setNewClients] = useState<SelectableClient[]>([]);
+
   const form = useForm<ContractFormValues>({
     resolver: zodResolver(contractFormSchema),
     defaultValues: toFormValues(contract),
@@ -170,16 +181,25 @@ export function ContractPanel({
 
   // When editing, the vehicle/client already on this contract might not be
   // in the "available" list passed in — make sure they still show up.
+  const allVehicles = [...newVehicles.filter((n) => !vehicles.some((v) => v.id === n.id)), ...vehicles];
+  const allClients = [...newClients.filter((n) => !clients.some((c) => c.id === n.id)), ...clients];
   const vehicleOptions =
-    isEditing && !vehicles.some((v) => v.id === contract!.vehicle_id)
-      ? [{ id: contract!.vehicle_id, label: "(current vehicle)" }, ...vehicles]
-      : vehicles;
-  const clientOptions =
-    isEditing && !clients.some((c) => c.id === contract!.client_id)
-      ? [{ id: contract!.client_id, label: "(current client)" }, ...clients]
-      : clients;
+    isEditing && !allVehicles.some((v) => v.id === contract!.vehicle_id)
+      ? [{ id: contract!.vehicle_id, label: "(current vehicle)" }, ...allVehicles]
+      : allVehicles;
+  const clientOptions = (
+    isEditing && !allClients.some((c) => c.id === contract!.client_id)
+      ? [{ id: contract!.client_id, label: "(current client)" }, ...allClients]
+      : allClients
+  ).map((c) => ({
+    id: c.id,
+    label: c.label,
+    node: <ClientName name={c.label} blacklisted={c.blacklisted} />,
+    keywords: c.blacklisted ? "blacklisted" : undefined,
+  }));
 
   return (
+    <>
     <Sheet
       open={open}
       onOpenChange={(next) => {
@@ -218,21 +238,23 @@ export function ContractPanel({
                 name="vehicleId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vehicle</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select vehicle" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {vehicleOptions.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel>Vehicle</FormLabel>
+                      {!readOnly && (
+                        <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setVehicleFormOpen(true)}>
+                          <Plus />
+                          Add new vehicle
+                        </Button>
+                      )}
+                    </div>
+                    <SearchableSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={vehicleOptions}
+                      placeholder="Select vehicle"
+                      searchPlaceholder="Search reg, file no, make, model…"
+                      emptyText="No available vehicle matches"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -242,21 +264,23 @@ export function ContractPanel({
                 name="clientId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select client" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {clientOptions.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            <ClientName name={c.label} blacklisted={c.blacklisted} />
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel>Client</FormLabel>
+                      {!readOnly && (
+                        <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setClientFormOpen(true)}>
+                          <Plus />
+                          Add new customer
+                        </Button>
+                      )}
+                    </div>
+                    <SearchableSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={clientOptions}
+                      placeholder="Select client"
+                      searchPlaceholder="Search client name…"
+                      emptyText="No client matches"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -657,5 +681,29 @@ export function ContractPanel({
         )}
       </SheetContent>
     </Sheet>
+    {/* Outside the contract's <form>: React submit events bubble through portals. */}
+    {!readOnly && (
+      <>
+        <VehiclePanel
+          open={vehicleFormOpen}
+          onOpenChange={setVehicleFormOpen}
+          onCreated={(id, v) => {
+            const reg = v.plateNumber.trim().toUpperCase();
+            const label = [v.fileNo, reg, [v.year, v.make, v.model].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+            setNewVehicles((prev) => [{ id, label }, ...prev]);
+            form.setValue("vehicleId", id, { shouldValidate: true, shouldDirty: true });
+          }}
+        />
+        <ClientPanel
+          open={clientFormOpen}
+          onOpenChange={setClientFormOpen}
+          onCreated={(id, v) => {
+            setNewClients((prev) => [{ id, label: v.fullName, blacklisted: v.blacklisted }, ...prev]);
+            form.setValue("clientId", id, { shouldValidate: true, shouldDirty: true });
+          }}
+        />
+      </>
+    )}
+    </>
   );
 }
