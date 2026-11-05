@@ -177,7 +177,13 @@ export function VehiclePanel({
         </DialogTrigger>
       )}
       <PanelModalContent>
-        <PanelModalHeader title={isEditing ? "Edit vehicle" : "Add vehicle"} />
+        <PanelModalHeader
+          title={
+            isEditing
+              ? `Edit vehicle – ${[vehicle!.file_no, vehicle!.current_plate].filter(Boolean).join(" · ")}`
+              : "Add vehicle"
+          }
+        />
         <Tabs value={tab} onValueChange={(v) => setTab(v as VehicleTab)} className="flex min-h-0 flex-1 flex-col gap-0">
           <PanelModalTabsList>
             <TabsTrigger value="vehicle">Vehicle</TabsTrigger>

@@ -270,7 +270,13 @@ export function ContractPanel({
         </DialogTrigger>
       )}
       <PanelModalContent>
-        <PanelModalHeader title={readOnly ? "Contract details" : isEditing ? "Edit contract" : "Add contract"} />
+        <PanelModalHeader
+          title={
+            isEditing
+              ? `${readOnly ? "Contract details" : "Edit contract"} – ${contract!.deal_number ?? contract!.vehicleLabel ?? "no deal number"}`
+              : "Add contract"
+          }
+        />
         <Tabs value={tab} onValueChange={(v) => setTab(v as ContractTab)} className="flex min-h-0 flex-1 flex-col gap-0">
           <PanelModalTabsList>
             <TabsTrigger value="deal">Deal</TabsTrigger>

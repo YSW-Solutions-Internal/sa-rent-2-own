@@ -192,7 +192,9 @@ export function ClientPanel({
         </DialogTrigger>
       )}
       <PanelModalContent>
-        <PanelModalHeader title={readOnly ? "Client details" : isEditing ? "Edit client" : "Add client"} />
+        <PanelModalHeader
+          title={isEditing ? `${readOnly ? "Client details" : "Edit client"} – ${client!.full_name}` : "Add client"}
+        />
         <Form {...form}>
           <form id="client-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
             <Tabs value={tab} onValueChange={(v) => setTab(v as ClientTab)} className="flex min-h-0 flex-1 flex-col gap-0">
