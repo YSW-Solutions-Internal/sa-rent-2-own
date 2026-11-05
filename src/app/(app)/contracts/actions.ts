@@ -62,7 +62,7 @@ async function toContractRow(
   const statementTag = values.statementTag || (await generateStatementTag(supabase, values.clientId));
 
   return {
-    vehicle_id: values.vehicleId,
+    vehicle_id: values.vehicleId || null, // empty = no vehicle (see updateContract)
     client_id: values.clientId,
     contract_type: values.contractType,
     status: values.status,
@@ -111,6 +111,7 @@ export async function createContract(raw: ContractFormValues): Promise<ActionRes
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const values = parsed.data;
+  if (!values.vehicleId) return { error: "Select a vehicle" };
 
   const supabase = await createSupabaseServerClient();
   const row = await toContractRow(supabase, values);
@@ -151,7 +152,7 @@ export async function updateContract(
   const today = new Date().toISOString().slice(0, 10);
   const { data: existing } = await supabase.from("contracts").select("vehicle_id").eq("id", contractId).maybeSingle();
   if (!existing) return { error: "Contract not found" };
-  const vehicleChanged = existing.vehicle_id !== values.vehicleId;
+  const vehicleChanged = (existing.vehicle_id ?? "") !== values.vehicleId;
   const changeDate = values.vehicleChangeDate || today;
   if (vehicleChanged) {
     if (changeDate > today) return { error: "The vehicle change date can't be in the future" };
@@ -176,7 +177,7 @@ export async function updateContract(
   const syncError = await syncVehicleAssignment(
     supabase,
     contractId,
-    values.vehicleId,
+    values.vehicleId || null,
     changeDate,
     values.vehicleChangeReason
   );

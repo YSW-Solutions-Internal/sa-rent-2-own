@@ -11,7 +11,8 @@ export interface ContractWithDetails {
   id: string;
   /** Display label of the current vehicle (file no · reg · year make model), when known. */
   vehicleLabel?: string;
-  vehicle_id: string;
+  /** null = the vehicle was taken off and none has been put on yet. */
+  vehicle_id: string | null;
   client_id: string;
   contract_type: ContractType;
   status: ContractStatus;

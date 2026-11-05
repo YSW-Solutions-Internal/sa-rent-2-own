@@ -49,7 +49,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
 
   const activeVehicleIds = new Set(
     (contracts ?? []).filter((c) => c.status === "active").map((c) => c.vehicle_id)
-  );
+  );  // (null for contracts with no vehicle — never matches a car)
 
   // Available for a contract: no active contract. Cars that are sold, written
   // off or at end of deal still show, with a warning, until the availability
@@ -74,12 +74,12 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
   const showPrices = canSeeFinancials(profile.role);
 
   const rows: ContractRow[] = (contracts ?? []).map((c) => {
-    const vehicle = vehicleById.get(c.vehicle_id);
+    const vehicle = c.vehicle_id ? vehicleById.get(c.vehicle_id) : undefined;
     return {
       ...c,
       purchase_price: showPrices ? c.purchase_price : null,
       potential_sale_price: showPrices ? c.potential_sale_price : null,
-      vehicleLabel: vehicle ? vehicleLabel(vehicle) : "Unknown vehicle",
+      vehicleLabel: vehicle ? vehicleLabel(vehicle) : c.vehicle_id ? "Unknown vehicle" : "No vehicle",
       clientName: clientById.get(c.client_id) ?? "Unknown client",
       clientBlacklisted: blacklistedClientIds.has(c.client_id),
     };

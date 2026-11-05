@@ -26,7 +26,7 @@ export async function listClientContracts(
   if (error) return { error: "Couldn't load linked contracts" };
   if (!contracts || contracts.length === 0) return { data: [] };
 
-  const vehicleIds = [...new Set(contracts.map((c) => c.vehicle_id))];
+  const vehicleIds = [...new Set(contracts.map((c) => c.vehicle_id).filter((id): id is string => id !== null))];
   const { data: vehicles } = await supabase.from("vehicles").select("id, file_no").in("id", vehicleIds);
   const { data: registrations } = await supabase
     .from("vehicle_registrations")
@@ -43,8 +43,8 @@ export async function listClientContracts(
     status: c.status,
     start_date: c.start_date,
     end_date: c.end_date,
-    file_no: fileNoByVehicle.get(c.vehicle_id) ?? "Unknown vehicle",
-    plate: plateByVehicle.get(c.vehicle_id) ?? null,
+    file_no: c.vehicle_id ? (fileNoByVehicle.get(c.vehicle_id) ?? "Unknown vehicle") : "No vehicle",
+    plate: c.vehicle_id ? (plateByVehicle.get(c.vehicle_id) ?? null) : null,
   }));
 
   return { data: rows };

@@ -78,7 +78,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
   const pastClientNamesByVehicle = new Map<string, string[]>();
   for (const c of pastContracts ?? []) {
     const name = clientById.get(c.client_id)?.full_name;
-    if (!name) continue;
+    if (!name || !c.vehicle_id) continue;
     const names = pastClientNamesByVehicle.get(c.vehicle_id) ?? [];
     if (!names.includes(name)) names.push(name);
     pastClientNamesByVehicle.set(c.vehicle_id, names);

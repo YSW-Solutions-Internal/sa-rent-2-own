@@ -294,7 +294,7 @@ export interface Database {
       contracts: {
         Row: {
           id: string;
-          vehicle_id: string;
+          vehicle_id: string | null;
           client_id: string;
           contract_type: ContractType;
           start_date: string;
@@ -322,7 +322,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          vehicle_id: string;
+          vehicle_id?: string | null;
           client_id: string;
           contract_type?: ContractType;
           start_date?: string;

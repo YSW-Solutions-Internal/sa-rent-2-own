@@ -78,6 +78,7 @@ async function describeVehicles(vehicles: VehicleRow[], ctx: ToolContext) {
     const nameById = new Map((clients ?? []).map((c) => [c.id, c.full_name]));
     const blacklistedIds = new Set((clients ?? []).filter((c) => c.blacklisted).map((c) => c.id));
     for (const c of contracts ?? []) {
+      if (!c.vehicle_id) continue;
       contractByVehicle.set(c.vehicle_id, {
         client: nameById.get(c.client_id) ?? null,
         ...(blacklistedIds.has(c.client_id) ? { client_blacklisted: true } : {}),
@@ -137,7 +138,7 @@ async function findVehicle(raw: unknown, ctx: ToolContext) {
         .select("vehicle_id")
         .in("client_id", clients.map((c) => c.id))
         .eq("status", "active");
-      for (const c of contracts ?? []) ids.add(c.vehicle_id);
+      for (const c of contracts ?? []) if (c.vehicle_id) ids.add(c.vehicle_id);
     }
   }
 
@@ -245,7 +246,7 @@ async function listVehicles(raw: unknown, ctx: ToolContext) {
       .lte("end_date", addDays(today, input.contract_ending_within_days))
       .order("end_date")
       .limit(200);
-    ids = (data ?? []).map((c) => c.vehicle_id);
+    ids = (data ?? []).map((c) => c.vehicle_id).filter((id): id is string => id !== null);
     if (ids.length === 0) return { total: 0, vehicles: [] };
   }
 

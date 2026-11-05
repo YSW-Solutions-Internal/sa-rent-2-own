@@ -14,7 +14,7 @@ type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 export async function syncVehicleAssignment(
   supabase: Supabase,
   contractId: string,
-  vehicleId: string,
+  vehicleId: string | null,
   effectiveFrom: string,
   reason?: string | null
 ): Promise<string | null> {
@@ -24,6 +24,16 @@ export async function syncVehicleAssignment(
     .eq("contract_id", contractId)
     .is("effective_to", null)
     .maybeSingle();
+
+  if (vehicleId === null) {
+    // Vehicle removed, contract left with none: just close the open assignment.
+    if (!current) return null;
+    const { error } = await supabase
+      .from("contract_vehicle_assignments")
+      .update({ effective_to: effectiveFrom, ...(reason?.trim() ? { reason: reason.trim() } : {}) })
+      .eq("id", current.id);
+    return error ? "Couldn't close the vehicle's assignment" : null;
+  }
 
   if (current?.vehicle_id === vehicleId) return null;
 

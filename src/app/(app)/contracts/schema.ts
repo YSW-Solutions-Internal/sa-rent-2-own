@@ -14,7 +14,8 @@ export const billingFrequencyValues = ["weekly", "monthly"] as const;
 export const billingStatusValues = ["active", "paused", "stopped"] as const;
 
 export const contractFormSchema = z.object({
-  vehicleId: z.string().min(1, "Select a vehicle"),
+  // Empty = no vehicle: allowed when editing (a car taken off and not yet replaced); a new contract still needs one.
+  vehicleId: z.string(),
   clientId: z.string().min(1, "Select a client"),
   contractType: z.enum(contractTypeValues),
   status: z.enum(contractStatusValues),
