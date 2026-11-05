@@ -275,6 +275,8 @@ export function ClientPanel({
               />
             </section>
 
+            <Separator />
+
             <section className="grid gap-4 sm:grid-cols-2">
               <h3 className="col-span-full flex items-center gap-1.5 text-xs font-semibold tracking-wide text-red-600 uppercase">
                 <BlacklistFlag /> Blacklist

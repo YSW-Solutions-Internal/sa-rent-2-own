@@ -337,6 +337,8 @@ export function ContractPanel({
               />
             </section>
 
+            <Separator />
+
             <section className="grid gap-4 sm:grid-cols-3">
               <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
                 Billing
@@ -464,6 +466,8 @@ export function ContractPanel({
                 )}
               />
             </section>
+
+            <Separator />
 
             <section className="grid gap-4 sm:grid-cols-3">
               <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
@@ -614,6 +618,8 @@ export function ContractPanel({
                 )}
               />
             </section>
+
+            <Separator />
 
             <FormField
               control={form.control}

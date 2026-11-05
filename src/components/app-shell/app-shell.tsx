@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/database.types";
 
@@ -20,6 +21,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     // Reads localStorage (unavailable during SSR) to sync the persisted
@@ -78,7 +80,28 @@ export function AppShell({
       </aside>
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b px-4 md:hidden">
-          <div className="font-semibold tracking-tight">SAR2O Fleet</div>
+          <div className="flex items-center gap-2">
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" aria-label="Open navigation menu">
+                  <Menu className="size-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="bg-sidebar text-sidebar-foreground w-72 border-r-0 p-0"
+              >
+                <SheetHeader className="border-white/10">
+                  <SheetTitle className="text-sidebar-foreground">SAR2O Fleet</SheetTitle>
+                </SheetHeader>
+                <SidebarNav
+                  role={profile.role}
+                  onNavigate={() => setMobileNavOpen(false)}
+                />
+              </SheetContent>
+            </Sheet>
+            <div className="font-semibold tracking-tight">SAR2O Fleet</div>
+          </div>
           <UserMenu fullName={profile.fullName} role={profile.role} />
         </header>
         <main className="bg-surface-sunken flex-1 overflow-y-auto p-4 md:p-6">{children}</main>

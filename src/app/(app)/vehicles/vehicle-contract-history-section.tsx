@@ -4,6 +4,7 @@ import { ClientName } from "@/components/blacklist-flag";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDisplayDate } from "@/lib/date-ranges";
 
@@ -28,7 +29,11 @@ export function VehicleContractHistorySection({ vehicleId }: { vehicleId: string
         Contract history
       </h3>
       {entries === null ? (
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <div className="flex flex-col gap-2 rounded-md border p-3">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
       ) : entries.length === 0 ? (
         <p className="text-muted-foreground text-sm">No contracts recorded for this vehicle yet.</p>
       ) : (

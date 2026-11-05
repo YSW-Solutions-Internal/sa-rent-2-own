@@ -4,6 +4,17 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Paperclip, Plus, Receipt, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,7 +63,7 @@ function InvoiceLink({ filePath }: { filePath: string }) {
   return (
     <button
       type="button"
-      className="text-primary inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline disabled:opacity-50"
+      className="text-primary focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-xs text-xs underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] disabled:opacity-50"
       disabled={isPending}
       onClick={() =>
         startTransition(async () => {
@@ -111,7 +123,14 @@ function CostsTable({
   onDelete: (costId: string) => void;
 }) {
   if (loading) {
-    return <p className="text-muted-foreground py-6 text-center text-sm">Loading…</p>;
+    return (
+      <div className="flex flex-col gap-2 rounded-md border p-3">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
+    );
   }
 
   if (costs.length === 0) {
@@ -150,10 +169,12 @@ function CostsTable({
               <TableCell>{cost.supplier || "—"}</TableCell>
               <TableCell className="max-w-64 whitespace-normal">{cost.work_done || "—"}</TableCell>
               <TableCell className="max-w-64 whitespace-normal">{cost.notes || "—"}</TableCell>
-              <TableCell className="text-right whitespace-nowrap">
+              <TableCell className="text-right whitespace-nowrap tabular-nums">
                 {cost.mileage_at_time != null ? `${cost.mileage_at_time.toLocaleString("en-ZA")} km` : "—"}
               </TableCell>
-              <TableCell className="text-right font-medium whitespace-nowrap">{formatRand(cost.amount)}</TableCell>
+              <TableCell className="text-right font-medium whitespace-nowrap tabular-nums">
+                {formatRand(cost.amount)}
+              </TableCell>
               <TableCell>
                 {cost.invoice_file_path ? (
                   <InvoiceLink filePath={cost.invoice_file_path} />
@@ -164,16 +185,32 @@ function CostsTable({
               <TableCell className="whitespace-nowrap">{cost.recorded_by_name || "—"}</TableCell>
               <TableCell>
                 {canManage && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Delete cost"
-                    disabled={isPending}
-                    onClick={() => onDelete(cost.id)}
-                  >
-                    <Trash2 className="text-destructive size-4" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete cost"
+                        disabled={isPending}
+                      >
+                        <Trash2 className="text-destructive size-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this cost entry?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This removes the {formatRand(cost.amount)} {COST_TYPE_LABELS[cost.cost_type]} entry from{" "}
+                          {formatDisplayDate(cost.cost_date)}. This can&apos;t be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onDelete(cost.id)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 )}
               </TableCell>
             </TableRow>
@@ -182,7 +219,9 @@ function CostsTable({
             <TableCell colSpan={showType ? 6 : 5} className="text-muted-foreground text-right text-xs uppercase">
               Total
             </TableCell>
-            <TableCell className="text-right font-semibold whitespace-nowrap">{formatRand(total)}</TableCell>
+            <TableCell className="text-right font-semibold whitespace-nowrap tabular-nums">
+              {formatRand(total)}
+            </TableCell>
             <TableCell colSpan={3} />
           </TableRow>
         </TableBody>
@@ -260,13 +299,15 @@ export function VehicleCostsSection({
       <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Transactions</h3>
       <Dialog open={open} onOpenChange={setOpen}>
         <div className="flex items-center justify-between gap-3 rounded-md border p-3">
-          <p className="text-sm">
-            {costs === null
-              ? "Loading…"
-              : costs.length === 0
+          {costs === null ? (
+            <Skeleton className="h-4 w-32" />
+          ) : (
+            <p className="text-sm tabular-nums">
+              {costs.length === 0
                 ? "No costs logged yet."
                 : `${costs.length} ${costs.length === 1 ? "entry" : "entries"} · ${formatRand(total)}`}
-          </p>
+            </p>
+          )}
           <DialogTrigger asChild>
             <Button type="button" variant="outline" size="sm">
               <Receipt />

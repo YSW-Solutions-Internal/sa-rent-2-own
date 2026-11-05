@@ -293,6 +293,8 @@ export function VehiclePanel({
                 />
               </section>
 
+              <Separator />
+
               <section className="grid gap-4 sm:grid-cols-2">
                 <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
                   Service &amp; tracking
@@ -397,6 +399,8 @@ export function VehiclePanel({
                   )}
                 />
               </section>
+
+              <Separator />
 
               <section className="grid gap-4 sm:grid-cols-2">
                 <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">

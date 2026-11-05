@@ -25,7 +25,10 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: var(--brand-grey);
+  /* #757575, not --brand-grey (#9e9e9e): the brand grey is ~2.68:1 on
+     white, below the 4.5:1 WCAG AA minimum for text. --brand-grey itself
+     is kept for non-text uses (borders, chart fills). */
+  --muted-foreground: #757575;
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: var(--brand-red);
