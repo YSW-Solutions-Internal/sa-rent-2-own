@@ -2,21 +2,23 @@
 
 import { useState, useTransition } from "react";
 import { useControllableOpen } from "@/lib/use-controllable-open";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  PanelModalBody,
+  PanelModalContent,
+  PanelModalFooter,
+  PanelModalFormTab,
+  PanelModalHeader,
+  PanelModalTab,
+  PanelModalTabsList,
+} from "@/components/ui/panel-modal";
+import { Tabs, TabsTrigger } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -108,6 +110,11 @@ function RevealedBanking({ clientId }: { clientId: string }) {
   );
 }
 
+type ClientTab = "client" | "banking" | "contracts";
+
+/** Fields on the Banking Details tab (anything else is on Client). */
+const BANKING_FIELDS = new Set(["bankName", "accountType", "branchCode", "accountHolderName", "accountNumber"]);
+
 export function ClientPanel({
   client,
   readOnly = false,
@@ -132,6 +139,13 @@ export function ClientPanel({
     defaultValues: toFormValues(client),
   });
 
+  const [tab, setTab] = useState<ClientTab>("client");
+  // A save blocked by validation jumps to the tab holding the first bad field.
+  function onInvalid(errors: FieldErrors<ClientFormValues>) {
+    const first = Object.keys(errors)[0];
+    setTab(BANKING_FIELDS.has(first) ? "banking" : "client");
+  }
+
   const blacklisted = useWatch({ control: form.control, name: "blacklisted" });
 
   function onSubmit(values: ClientFormValues) {
@@ -153,15 +167,18 @@ export function ClientPanel({
   }
 
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) form.reset(toFormValues(client));
+        if (next) {
+          form.reset(toFormValues(client));
+          setTab("client");
+        }
       }}
     >
       {!isControlled && (
-        <SheetTrigger asChild>
+        <DialogTrigger asChild>
           {isEditing ? (
             <Button variant="ghost" size="sm">
               Edit
@@ -172,20 +189,22 @@ export function ClientPanel({
               Add client
             </Button>
           )}
-        </SheetTrigger>
+        </DialogTrigger>
       )}
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>{readOnly ? "Client details" : isEditing ? "Edit client" : "Add client"}</SheetTitle>
-        </SheetHeader>
+      <PanelModalContent>
+        <PanelModalHeader title={readOnly ? "Client details" : isEditing ? "Edit client" : "Add client"} />
         <Form {...form}>
-          <form id="client-form" onSubmit={form.handleSubmit(onSubmit)} className="contents">
-            <SheetBody>
+          <form id="client-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as ClientTab)} className="flex min-h-0 flex-1 flex-col gap-0">
+              <PanelModalTabsList>
+                <TabsTrigger value="client">Client</TabsTrigger>
+                <TabsTrigger value="banking">Banking Details</TabsTrigger>
+                {isEditing && <TabsTrigger value="contracts">Contracts</TabsTrigger>}
+              </PanelModalTabsList>
+              <PanelModalBody>
             <fieldset disabled={readOnly} className="contents">
+            <PanelModalFormTab value="client">
             <section className="grid gap-4 sm:grid-cols-2">
-              <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
-                Client
-              </h3>
               <FormField
                 control={form.control}
                 name="fullName"
@@ -313,12 +332,12 @@ export function ClientPanel({
                 />
               )}
             </section>
+            </PanelModalFormTab>
 
+            <PanelModalFormTab value="banking">
             <section className="grid gap-4 sm:grid-cols-2">
               <div className="col-span-full flex items-center justify-between">
-                <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                  Banking details
-                </h3>
+                <span />
                 {isEditing && client!.banking && !readOnly && <RevealedBanking clientId={client!.id} />}
               </div>
               {isEditing && client!.banking ? (
@@ -413,25 +432,26 @@ export function ClientPanel({
               )}
             </section>
 
-            {isEditing && (
-              <>
-                <Separator />
-                <ClientContractsSection clientId={client!.id} />
-              </>
-            )}
+            </PanelModalFormTab>
 
+            {isEditing && (
+              <PanelModalTab value="contracts">
+                <ClientContractsSection clientId={client!.id} />
+              </PanelModalTab>
+            )}
             </fieldset>
-            </SheetBody>
+              </PanelModalBody>
+            </Tabs>
           </form>
         </Form>
-        {!readOnly && (
-          <SheetFooter>
+        {!readOnly && tab !== "contracts" && (
+          <PanelModalFooter>
             <Button type="submit" form="client-form" disabled={isPending}>
               {isPending ? "Saving…" : "Save"}
             </Button>
-          </SheetFooter>
+          </PanelModalFooter>
         )}
-      </SheetContent>
-    </Sheet>
+      </PanelModalContent>
+    </Dialog>
   );
 }

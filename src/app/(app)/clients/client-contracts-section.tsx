@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -44,9 +45,6 @@ export function ClientContractsSection({ clientId }: { clientId: string }) {
 
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-        Linked contracts
-      </h3>
       {entries === null ? (
         <div className="flex flex-col gap-2 rounded-md border p-3">
           <Skeleton className="h-4 w-full" />
@@ -70,7 +68,11 @@ export function ClientContractsSection({ clientId }: { clientId: string }) {
             <TableBody>
               {entries.map((entry) => (
                 <TableRow key={entry.id}>
-                  <TableCell>{entry.deal_number ?? "—"}</TableCell>
+                  <TableCell>
+                    <Link href={`/contracts?open=${entry.id}`} className="text-primary font-medium underline-offset-4 hover:underline">
+                      {entry.deal_number ?? "View contract"}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     {entry.file_no}
                     {entry.plate ? ` (${entry.plate})` : ""}

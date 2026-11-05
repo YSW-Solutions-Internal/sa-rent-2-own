@@ -714,18 +714,20 @@ const VehicleRow = memo(function VehicleRow({
         </TableCell>
       ))}
       {canManage && (
-        <TableCell className="flex items-center justify-end gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            aria-label="Edit vehicle"
-            onClick={() => onEdit(vehicle.id)}
-          >
-            <Pencil className="size-3" />
-          </Button>
-          <DeleteVehicleButton vehicleId={vehicle.id} label={vehicle.current_plate ?? vehicle.file_no} />
+        <TableCell className="sticky right-0 z-10 w-24 border-l bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              aria-label="Edit vehicle"
+              onClick={() => onEdit(vehicle.id)}
+            >
+              <Pencil className="size-3" />
+            </Button>
+            <DeleteVehicleButton vehicleId={vehicle.id} label={vehicle.current_plate ?? vehicle.file_no} />
+          </div>
         </TableCell>
       )}
     </TableRow>
@@ -1192,7 +1194,7 @@ export function VehiclesTable({
                     />
                   ))}
                 </SortableContext>
-                {canManage && <TableHead className="w-24" />}
+                {canManage && <TableHead className="sticky right-0 z-20 w-24 border-l bg-muted" />}
               </TableRow>
             </TableHeader>
             <TableBody>

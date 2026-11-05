@@ -14,6 +14,8 @@ function firstParam(value: string | string[] | undefined) {
 export default async function ContractsPage({ searchParams }: PageProps<"/contracts">) {
   const params = await searchParams;
   const initialEndingSoon = firstParam(params.ending) === "soon";
+  // /contracts?open=<id> opens that contract's panel straight away (links from vehicles and clients).
+  const initialOpenContractId = firstParam(params.open) ?? null;
 
   const profile = await getCurrentProfile();
   if (!profile || !canViewContracts(profile.role)) {
@@ -85,6 +87,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
         vehicles={selectableVehicles}
         clients={selectableClients}
         initialEndingSoon={initialEndingSoon}
+        initialOpenContractId={initialOpenContractId}
         exportedBy={profile.fullName}
         canEdit={canEdit(profile.role)}
       />

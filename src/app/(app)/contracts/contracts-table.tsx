@@ -81,6 +81,7 @@ export function ContractsTable({
   vehicles,
   clients,
   initialEndingSoon,
+  initialOpenContractId,
   exportedBy,
   canEdit,
 }: {
@@ -88,6 +89,7 @@ export function ContractsTable({
   vehicles: SelectableVehicle[];
   clients: SelectableClient[];
   initialEndingSoon?: boolean;
+  initialOpenContractId?: string | null;
   exportedBy: string;
   canEdit: boolean;
 }) {
@@ -98,7 +100,9 @@ export function ContractsTable({
   // One shared edit panel instead of one per row; keyed per open so its form
   // starts from the contract's current values, and kept mounted after
   // closing so the sheet can finish its close animation.
-  const [panel, setPanel] = useState<{ contractId: string; open: boolean; openCount: number } | null>(null);
+  const [panel, setPanel] = useState<{ contractId: string; open: boolean; openCount: number } | null>(
+    initialOpenContractId ? { contractId: initialOpenContractId, open: true, openCount: 1 } : null
+  );
   const captureRef = useRef<HTMLDivElement>(null);
 
   const panelContract = panel ? rows.find((r) => r.id === panel.contractId) : undefined;
@@ -375,7 +379,15 @@ export function ContractsTable({
           readOnly={!canEdit}
           showPrices={canEdit}
           open={panel.open}
-          onOpenChange={(next) => setPanel((prev) => (prev ? { ...prev, open: next } : prev))}
+          onOpenChange={(next) => {
+            setPanel((prev) => (prev ? { ...prev, open: next } : prev));
+            // Drop ?open=… from the address once the panel is closed.
+            if (!next && initialOpenContractId) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("open");
+              window.history.replaceState(null, "", url);
+            }
+          }}
         />
       )}
 

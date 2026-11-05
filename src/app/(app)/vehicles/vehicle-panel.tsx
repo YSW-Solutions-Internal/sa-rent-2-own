@@ -1,7 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useTransition } from "react";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -24,16 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
+  PanelModalBody,
+  PanelModalContent,
+  PanelModalFooter,
+  PanelModalFormTab,
+  PanelModalHeader,
+  PanelModalTab,
+  PanelModalTabsList,
+} from "@/components/ui/panel-modal";
+import { Tabs, TabsTrigger } from "@/components/ui/tabs";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
 import { VEHICLE_STATUS_LABELS as STATUS_LABELS } from "@/lib/vehicle-status";
@@ -84,6 +85,24 @@ function toFormValues(vehicle?: VehicleWithRegistration): VehicleFormValues {
   };
 }
 
+type VehicleTab = "vehicle" | "service" | "compliance" | "transactions" | "history";
+
+/** Which tab each form field lives on (anything not listed is on Vehicle). */
+const FIELD_TAB: Record<string, VehicleTab> = {
+  currentMileage: "service",
+  nextServiceKm: "service",
+  nextServiceDate: "service",
+  lastServicedBy: "service",
+  trackerSupplier: "service",
+  trackerRunning: "service",
+  licenseDiscExpiry: "compliance",
+  warrantyNotes: "compliance",
+  natisOnFile: "compliance",
+  hasSpareKey: "compliance",
+  warrantyActive: "compliance",
+  hasContractFile: "compliance",
+};
+
 export function VehiclePanel({
   vehicle,
   canManage = true,
@@ -107,6 +126,13 @@ export function VehiclePanel({
     defaultValues: toFormValues(vehicle),
   });
 
+  const [tab, setTab] = useState<VehicleTab>("vehicle");
+  // A save blocked by validation jumps to the tab holding the first bad field.
+  function onInvalid(errors: FieldErrors<VehicleFormValues>) {
+    const first = Object.keys(errors)[0];
+    setTab(FIELD_TAB[first] ?? "vehicle");
+  }
+
   function onSubmit(values: VehicleFormValues) {
     startTransition(async () => {
       const result = isEditing
@@ -126,15 +152,18 @@ export function VehiclePanel({
   }
 
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) form.reset(toFormValues(vehicle));
+        if (next) {
+          form.reset(toFormValues(vehicle));
+          setTab("vehicle");
+        }
       }}
     >
       {!isControlled && (
-        <SheetTrigger asChild>
+        <DialogTrigger asChild>
           {isEditing ? (
             <Button variant="ghost" size="sm">
               Edit
@@ -145,23 +174,23 @@ export function VehiclePanel({
               Add vehicle
             </Button>
           )}
-        </SheetTrigger>
+        </DialogTrigger>
       )}
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>{isEditing ? "Edit vehicle" : "Add vehicle"}</SheetTitle>
-        </SheetHeader>
-        <SheetBody>
+      <PanelModalContent>
+        <PanelModalHeader title={isEditing ? "Edit vehicle" : "Add vehicle"} />
+        <Tabs value={tab} onValueChange={(v) => setTab(v as VehicleTab)} className="flex min-h-0 flex-1 flex-col gap-0">
+          <PanelModalTabsList>
+            <TabsTrigger value="vehicle">Vehicle</TabsTrigger>
+            <TabsTrigger value="service">Service &amp; Tracking</TabsTrigger>
+            <TabsTrigger value="compliance">Compliance</TabsTrigger>
+            {isEditing && <TabsTrigger value="transactions">Transactions</TabsTrigger>}
+            {isEditing && <TabsTrigger value="history">Contract History</TabsTrigger>}
+          </PanelModalTabsList>
+          <PanelModalBody>
           <Form {...form}>
-            <form
-              id="vehicle-form"
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="flex flex-col gap-6"
-            >
+            <form id="vehicle-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
+              <PanelModalFormTab value="vehicle">
               <section className="grid gap-4 sm:grid-cols-2">
-                <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
-                  Vehicle
-                </h3>
                 <FormField
                   control={form.control}
                   name="fileNo"
@@ -296,14 +325,11 @@ export function VehiclePanel({
                   )}
                 />
               </section>
+              </PanelModalFormTab>
 
-              <Separator />
-
+              <PanelModalFormTab value="service">
               <section className="grid gap-4 sm:grid-cols-2">
-                <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
-                  Service &amp; tracking
-                </h3>
-                <FormField
+<FormField
                   control={form.control}
                   name="currentMileage"
                   render={({ field }) => (
@@ -403,14 +429,11 @@ export function VehiclePanel({
                   )}
                 />
               </section>
+              </PanelModalFormTab>
 
-              <Separator />
-
+              <PanelModalFormTab value="compliance">
               <section className="grid gap-4 sm:grid-cols-2">
-                <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
-                  Compliance
-                </h3>
-                <FormField
+<FormField
                   control={form.control}
                   name="licenseDiscExpiry"
                   render={({ field }) => (
@@ -487,25 +510,30 @@ export function VehiclePanel({
                   />
                 </div>
               </section>
-
+              </PanelModalFormTab>
             </form>
           </Form>
 
           {isEditing && (
             <>
-              <Separator />
-              <VehicleCostsSection vehicleId={vehicle!.id} canManage={canManage} />
-              <Separator />
-              <VehicleContractHistorySection vehicleId={vehicle!.id} />
+              <PanelModalTab value="transactions">
+                <VehicleCostsSection vehicleId={vehicle!.id} canManage={canManage} />
+              </PanelModalTab>
+              <PanelModalTab value="history">
+                <VehicleContractHistorySection vehicleId={vehicle!.id} />
+              </PanelModalTab>
             </>
           )}
-        </SheetBody>
-        <SheetFooter>
-          <Button type="submit" form="vehicle-form" disabled={isPending}>
-            {isPending ? "Saving…" : "Save"}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+          </PanelModalBody>
+        </Tabs>
+        {tab !== "transactions" && tab !== "history" && (
+          <PanelModalFooter>
+            <Button type="submit" form="vehicle-form" disabled={isPending}>
+              {isPending ? "Saving…" : "Save"}
+            </Button>
+          </PanelModalFooter>
+        )}
+      </PanelModalContent>
+    </Dialog>
   );
 }

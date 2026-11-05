@@ -4,6 +4,7 @@ import { createClient as createSupabaseServerClient } from "@/lib/supabase/serve
 
 export interface VehicleContractHistoryEntry {
   id: string;
+  contract_id: string;
   effective_from: string;
   effective_to: string | null;
   deal_number: string | null;
@@ -45,6 +46,7 @@ export async function listVehicleContractHistory(
     const contract = contractById.get(a.contract_id);
     return {
       id: a.id,
+      contract_id: a.contract_id,
       effective_from: a.effective_from,
       effective_to: a.effective_to,
       deal_number: contract?.deal_number ?? null,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Paperclip, Plus, Receipt, Trash2, User } from "lucide-react";
+import { Paperclip, Plus, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -16,14 +16,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -230,11 +222,7 @@ function CostsTable({
   );
 }
 
-/**
- * In the vehicle panel this is just a one-line summary and a button; the cost
- * history and the add form live in a wide centred modal, where the table has
- * room for every column.
- */
+/** The vehicle modal's Transactions tab: cost history, filters and the add form. */
 export function VehicleCostsSection({
   vehicleId,
   canManage,
@@ -242,7 +230,6 @@ export function VehicleCostsSection({
   vehicleId: string;
   canManage: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const [costs, setCosts] = useState<VehicleCost[] | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabValue>("all");
@@ -295,31 +282,14 @@ export function VehicleCostsSection({
   const total = (costs ?? []).reduce((sum, c) => sum + c.amount, 0);
 
   return (
-    <section className="flex flex-col gap-3">
-      <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Transactions</h3>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
-          {costs === null ? (
-            <Skeleton className="h-4 w-32" />
-          ) : (
-            <p className="text-sm tabular-nums">
-              {costs.length === 0
-                ? "No costs logged yet."
-                : `${costs.length} ${costs.length === 1 ? "entry" : "entries"} · ${formatRand(total)}`}
-            </p>
-          )}
-          <DialogTrigger asChild>
-            <Button type="button" variant="outline" size="sm">
-              <Receipt />
-              View costs
-            </Button>
-          </DialogTrigger>
-        </div>
-        <DialogContent className="sm:max-w-6xl">
-          <DialogHeader>
-            <DialogTitle>Vehicle costs</DialogTitle>
-            <DialogDescription>Services, repairs and other costs logged against this vehicle.</DialogDescription>
-          </DialogHeader>
+    <div className="flex flex-col gap-4">
+      <p className="text-muted-foreground text-sm">
+        {costs === null
+          ? "Loading…"
+          : costs.length === 0
+            ? "No costs logged yet."
+            : `${costs.length} ${costs.length === 1 ? "entry" : "entries"} · ${formatRand(total)} in total. Services, repairs and other costs logged against this vehicle.`}
+      </p>
 
           <div className="flex items-center justify-between gap-3">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
@@ -414,8 +384,6 @@ export function VehicleCostsSection({
             isPending={isPending}
             onDelete={onDelete}
           />
-        </DialogContent>
-      </Dialog>
-    </section>
+    </div>
   );
 }

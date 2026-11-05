@@ -2,22 +2,23 @@
 
 import { ClientName } from "@/components/blacklist-flag";
 import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  PanelModalBody,
+  PanelModalContent,
+  PanelModalFooter,
+  PanelModalFormTab,
+  PanelModalHeader,
+  PanelModalTabsList,
+} from "@/components/ui/panel-modal";
+import { Tabs, TabsTrigger } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -27,7 +28,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -126,6 +126,29 @@ function toFormValues(contract?: ContractWithDetails): ContractFormValues {
   };
 }
 
+type ContractTab = "deal" | "billing" | "financials" | "notes";
+
+/** Which tab each field lives on (anything not listed is on Deal). */
+const FIELD_TAB: Record<string, ContractTab> = {
+  dealNumber: "billing",
+  statementTag: "billing",
+  billingDay: "billing",
+  billingDirection: "billing",
+  billingFrequency: "billing",
+  billingStatus: "billing",
+  paymentMethod: "financials",
+  installmentAmount: "financials",
+  purchasePrice: "financials",
+  potentialSalePrice: "financials",
+  salePrice: "financials",
+  residualValue: "financials",
+  totalCollected: "financials",
+  outstandingBalance: "financials",
+  arrearsAmount: "financials",
+  isPaidUp: "financials",
+  notes: "notes",
+};
+
 export function ContractPanel({
   contract,
   vehicles,
@@ -161,6 +184,13 @@ export function ContractPanel({
     resolver: zodResolver(contractFormSchema),
     defaultValues: toFormValues(contract),
   });
+
+  const [tab, setTab] = useState<ContractTab>("deal");
+  // A save blocked by validation jumps to the tab holding the first bad field.
+  function onInvalid(errors: FieldErrors<ContractFormValues>) {
+    const first = Object.keys(errors)[0];
+    setTab((FIELD_TAB[first] as ContractTab | undefined) ?? "deal");
+  }
 
   function onSubmit(values: ContractFormValues) {
     startTransition(async () => {
@@ -200,15 +230,18 @@ export function ContractPanel({
 
   return (
     <>
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) form.reset(toFormValues(contract));
+        if (next) {
+          form.reset(toFormValues(contract));
+          setTab("deal");
+        }
       }}
     >
       {!isControlled && (
-        <SheetTrigger asChild>
+        <DialogTrigger asChild>
           {isEditing ? (
             <Button variant="ghost" size="sm">
               Edit
@@ -219,20 +252,23 @@ export function ContractPanel({
               Add contract
             </Button>
           )}
-        </SheetTrigger>
+        </DialogTrigger>
       )}
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>{readOnly ? "Contract details" : isEditing ? "Edit contract" : "Add contract"}</SheetTitle>
-        </SheetHeader>
-        <SheetBody>
+      <PanelModalContent>
+        <PanelModalHeader title={readOnly ? "Contract details" : isEditing ? "Edit contract" : "Add contract"} />
+        <Tabs value={tab} onValueChange={(v) => setTab(v as ContractTab)} className="flex min-h-0 flex-1 flex-col gap-0">
+          <PanelModalTabsList>
+            <TabsTrigger value="deal">Deal</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="financials">Financials</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
+          </PanelModalTabsList>
+          <PanelModalBody>
           <Form {...form}>
-            <form id="contract-form" onSubmit={form.handleSubmit(onSubmit)} className="contents">
+            <form id="contract-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
             <fieldset disabled={readOnly} className="contents">
+            <PanelModalFormTab value="deal">
             <section className="grid gap-4 sm:grid-cols-2">
-              <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
-                Deal
-              </h3>
               <FormField
                 control={form.control}
                 name="vehicleId"
@@ -360,13 +396,11 @@ export function ContractPanel({
                 )}
               />
             </section>
+            {isEditing && <ContractVehicleHistorySection contractId={contract!.id} />}
+            </PanelModalFormTab>
 
-            <Separator />
-
+            <PanelModalFormTab value="billing">
             <section className="grid gap-4 sm:grid-cols-3">
-              <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
-                Billing
-              </h3>
               <FormField
                 control={form.control}
                 name="dealNumber"
@@ -490,13 +524,10 @@ export function ContractPanel({
                 )}
               />
             </section>
+            </PanelModalFormTab>
 
-            <Separator />
-
+            <PanelModalFormTab value="financials">
             <section className="grid gap-4 sm:grid-cols-3">
-              <h3 className="text-muted-foreground col-span-full text-xs font-semibold tracking-wide uppercase">
-                Financials
-              </h3>
               <FormField
                 control={form.control}
                 name="paymentMethod"
@@ -642,9 +673,10 @@ export function ContractPanel({
                 )}
               />
             </section>
+            {isEditing && <ContractPaymentHistorySection contractId={contract!.id} />}
+            </PanelModalFormTab>
 
-            <Separator />
-
+            <PanelModalFormTab value="notes">
             <FormField
               control={form.control}
               name="notes"
@@ -659,28 +691,21 @@ export function ContractPanel({
               )}
             />
 
+            </PanelModalFormTab>
             </fieldset>
             </form>
           </Form>
-
-          {isEditing && (
-            <>
-              <Separator />
-              <ContractVehicleHistorySection contractId={contract!.id} />
-              <Separator />
-              <ContractPaymentHistorySection contractId={contract!.id} />
-            </>
-          )}
-        </SheetBody>
+          </PanelModalBody>
+        </Tabs>
         {!readOnly && (
-          <SheetFooter>
+          <PanelModalFooter>
             <Button type="submit" form="contract-form" disabled={isPending}>
               {isPending ? "Saving…" : "Save"}
             </Button>
-          </SheetFooter>
+          </PanelModalFooter>
         )}
-      </SheetContent>
-    </Sheet>
+      </PanelModalContent>
+    </Dialog>
     {/* Outside the contract's <form>: React submit events bubble through portals. */}
     {!readOnly && (
       <>
