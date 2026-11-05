@@ -21,6 +21,8 @@ const FLEET_STATUSES = ["on_road", "parked", "in_repair", "for_sale", "str", "re
 const ALL_STATUSES = [...FLEET_STATUSES, "sold", "written_off", "end_of_deal"] as const;
 
 const MAX_ROWS = 25;
+const MAX_MATCHES = 15;
+const SEARCH_STOPWORDS = new Set(["the", "a", "my", "car", "cars", "vehicle", "vehicles", "bakkie", "with", "for", "of", "and", "is", "where"]);
 
 const todayZA = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
 const addDays = (iso: string, days: number) => {
@@ -139,10 +141,58 @@ async function findVehicle(raw: unknown, ctx: ToolContext) {
     }
   }
 
-  if (ids.size === 0) return { matches: [], note: "No vehicle matched. Ask for the registration or file number (e.g. B0154)." };
+  // Make / model / colour / year ("Jeep Renegade", "white polo 2019"). Every
+  // word must match one of those fields; words are letters/digits only (see
+  // `clean`), so they are safe inside the filter string.
+  const words = text
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !SEARCH_STOPWORDS.has(w.toLowerCase()));
+  if (words.length > 0 && words.length <= 5) {
+    let q = db.from("vehicles").select("id");
+    for (const w of words) {
+      const fields = [`make.ilike.%${w}%`, `model.ilike.%${w}%`, `colour.ilike.%${w}%`];
+      if (/^(19|20)\d{2}$/.test(w)) fields.push(`year.eq.${w}`);
+      q = q.or(fields.join(","));
+    }
+    const { data: byDescription } = await q.limit(MAX_MATCHES + 1);
+    for (const r of byDescription ?? []) ids.add(r.id);
+  }
 
-  const { data: vehicles } = await db.from("vehicles").select(VEHICLE_COLUMNS).in("id", [...ids].slice(0, 6));
-  return { matches: await describeVehicles(vehicles ?? [], ctx) };
+  if (ids.size === 0) {
+    return { matches: [], note: "No vehicle matched. Ask for the registration, file number, or make/model/colour/year." };
+  }
+
+  const { data: vehicles } = await db.from("vehicles").select(VEHICLE_COLUMNS).in("id", [...ids].slice(0, 60));
+  // Fleet vehicles before sold / written-off / ended ones.
+  const rank = (status: string) => ((FLEET_STATUSES as readonly string[]).includes(status) ? 0 : 1);
+  const sorted = (vehicles ?? []).sort((a, b) => rank(a.status) - rank(b.status) || a.file_no.localeCompare(b.file_no));
+  const described = await describeVehicles(sorted, ctx);
+
+  if (described.length === 1) return { matches: described };
+
+  // Several cars: a short list to choose from, not full details.
+  return {
+    multiple_matches: true,
+    total: described.length,
+    shown: Math.min(described.length, MAX_MATCHES),
+    instruction:
+      "More than one vehicle matched. Show this list (registration, file number, year make model, colour, status, current client if given) and ask which one they want details about. Do not give full details yet. Once they pick one, call find_vehicle with its registration.",
+    matches: described.slice(0, MAX_MATCHES).map((v) => ({
+      registration: v.registration,
+      file_no: v.file_no,
+      vehicle: v.vehicle,
+      colour: v.colour,
+      status: v.status,
+      ...("current_contract" in v
+        ? {
+            current_client: (v.current_contract as { client?: string | null } | null)?.client ?? null,
+            ...((v.current_contract as { client_blacklisted?: boolean } | null)?.client_blacklisted
+              ? { client_blacklisted: true }
+              : {}),
+          }
+        : {}),
+    })),
+  };
 }
 
 async function fleetSummary(_raw: unknown, ctx: ToolContext) {
@@ -218,10 +268,10 @@ export const TOOLS = [
   {
     name: "find_vehicle",
     description:
-      "Look up vehicles by registration (e.g. KX97TCGP, spaces ignored), file number (e.g. B0154) or client name. Returns status, mileage, service dates, licence disc expiry and, for permitted users, the active contract.",
+      "Look up vehicles by registration (e.g. KX97TCGP, spaces ignored), file number (e.g. B0154), client name, or a description: make, model, colour and/or year (e.g. \"Jeep Renegade\", \"white Polo 2019\"). One match returns full details; several matches return a short list to choose from. Returns status, mileage, service dates, licence disc expiry and, for permitted users, the active contract.",
     input_schema: {
       type: "object" as const,
-      properties: { query: { type: "string", description: "Registration, file number or client name" } },
+      properties: { query: { type: "string", description: "Registration, file number, client name, or make/model/colour/year words" } },
       required: ["query"],
       additionalProperties: false,
     },
