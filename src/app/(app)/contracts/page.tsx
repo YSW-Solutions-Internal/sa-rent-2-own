@@ -51,12 +51,17 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
     (contracts ?? []).filter((c) => c.status === "active").map((c) => c.vehicle_id)
   );
 
-  // Available for a new contract: no active contract, and not already sold,
-  // written off or at end of deal.
-  const UNAVAILABLE_STATUSES = new Set(["sold", "written_off", "end_of_deal"]);
+  // Available for a contract: no active contract. Cars that are sold, written
+  // off or at end of deal still show, with a warning, until the availability
+  // rules are buttoned down (SPEC item 30).
+  const WARNING_STATUS_LABELS: Record<string, string> = {
+    sold: "Sold",
+    written_off: "Written off",
+    end_of_deal: "End of deal",
+  };
   const selectableVehicles: SelectableVehicle[] = (vehicles ?? [])
-    .filter((v) => !activeVehicleIds.has(v.id) && !UNAVAILABLE_STATUSES.has(v.status))
-    .map((v) => ({ id: v.id, label: vehicleLabel(v) }));
+    .filter((v) => !activeVehicleIds.has(v.id))
+    .map((v) => ({ id: v.id, label: vehicleLabel(v), warning: WARNING_STATUS_LABELS[v.status] }));
 
   const selectableClients: SelectableClient[] = (clients ?? []).map((c) => ({
     id: c.id,

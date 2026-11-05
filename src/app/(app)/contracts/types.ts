@@ -45,6 +45,8 @@ export interface ContractRow extends ContractWithDetails {
 export interface SelectableVehicle {
   id: string;
   label: string;
+  /** Shown beside the car in pickers, e.g. "Sold" — it can still be chosen. */
+  warning?: string;
 }
 
 export interface SelectableClient {

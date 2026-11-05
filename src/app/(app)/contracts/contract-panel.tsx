@@ -324,7 +324,19 @@ export function ContractPanel({
                       <SearchableSelect
                         value={field.value}
                         onChange={field.onChange}
-                        options={vehicleOptions}
+                        options={vehicleOptions.map((v) => ({
+                          id: v.id,
+                          label: v.label,
+                          keywords: v.warning,
+                          node: v.warning ? (
+                            <span className="inline-flex items-center gap-2">
+                              {v.label}
+                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                                ⚠ {v.warning}
+                              </span>
+                            </span>
+                          ) : undefined,
+                        }))}
                         placeholder={isEditing ? "Select the replacement vehicle" : "Select vehicle"}
                         searchPlaceholder="Search reg, file no, make, model…"
                         emptyText="No available vehicle matches"
