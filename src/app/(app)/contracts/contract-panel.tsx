@@ -1,6 +1,7 @@
 "use client";
 
 import { ClientName } from "@/components/blacklist-flag";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -335,9 +336,17 @@ export function ContractPanel({
                           </>
                         ) : (
                           <>
-                            <span className={hadVehicle ? undefined : "text-muted-foreground"}>
-                              {hadVehicle ? currentVehicleLabel : "No vehicle on this contract"}
-                            </span>
+                            {hadVehicle ? (
+                              <Link
+                                href={`/vehicles?open=${originalVehicleId}`}
+                                className="text-primary font-medium underline-offset-4 hover:underline"
+                                title="Open this vehicle"
+                              >
+                                {currentVehicleLabel}
+                              </Link>
+                            ) : (
+                              <span className="text-muted-foreground">No vehicle on this contract</span>
+                            )}
                             {!readOnly && (
                               <span className="flex items-center gap-2">
                                 <Button type="button" variant="outline" size="sm" onClick={() => setVehicleMode("change")}>

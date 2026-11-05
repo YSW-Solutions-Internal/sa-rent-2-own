@@ -17,6 +17,8 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
   const initialStatus = vehicleStatusValues.find((s) => s === statusParam);
   const initialServiceDueSoon = firstParam(params.service) === "due_soon";
   const initialContractEndingSoon = firstParam(params.contract) === "ending_soon";
+  // /vehicles?open=<id> opens that vehicle straight away (links from contracts).
+  const initialOpenVehicleId = firstParam(params.open) ?? null;
 
   const [profile, supabase] = await Promise.all([getCurrentProfile(), createClient()]);
   // canManage = edit rights (admin only); contract columns are visible to
@@ -116,6 +118,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
         initialStatus={initialStatus}
         initialServiceDueSoon={initialServiceDueSoon}
         initialContractEndingSoon={initialContractEndingSoon}
+        initialOpenVehicleId={initialOpenVehicleId}
         exportedBy={profile?.fullName ?? "Unknown"}
       />
     </div>

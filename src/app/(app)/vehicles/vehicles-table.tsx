@@ -57,6 +57,7 @@ import { vehicleStatusValues } from "./schema";
 import { updateVehicleColour, updateVehicleStatus } from "./actions";
 import { InlineEditCell } from "./inline-edit-cell";
 import { DeleteVehicleButton } from "./delete-vehicle-button";
+import { VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
 import { VehiclePanel } from "./vehicle-panel";
 import type { VehicleWithRegistration } from "./types";
 
@@ -742,6 +743,7 @@ export function VehiclesTable({
   initialStatus,
   initialServiceDueSoon,
   initialContractEndingSoon,
+  initialOpenVehicleId,
   exportedBy,
 }: {
   rows: VehicleWithRegistration[];
@@ -754,6 +756,8 @@ export function VehiclesTable({
   initialStatus?: VehicleStatus;
   initialServiceDueSoon?: boolean;
   initialContractEndingSoon?: boolean;
+  /** Open this vehicle on arrival (edit panel for admins, read-only summary for everyone else). */
+  initialOpenVehicleId?: string | null;
   exportedBy: string;
 }) {
   // Vehicles that have left the fleet (Sold / Written Off / End of Deal)
@@ -776,7 +780,18 @@ export function VehiclesTable({
   // carries its own form + sheet). It's keyed per open so the form always
   // starts from the vehicle's current values, and stays mounted after
   // closing so the sheet can finish its close animation.
-  const [panel, setPanel] = useState<{ vehicleId: string; open: boolean; openCount: number } | null>(null);
+  const [panel, setPanel] = useState<{ vehicleId: string; open: boolean; openCount: number } | null>(
+    canManage && initialOpenVehicleId ? { vehicleId: initialOpenVehicleId, open: true, openCount: 1 } : null
+  );
+  // Read-only summary for people who can't edit vehicles (Fleet Managers).
+  const [summaryVehicleId, setSummaryVehicleId] = useState<string | null>(!canManage ? (initialOpenVehicleId ?? null) : null);
+  // Drop ?open=… from the address once the opened vehicle is closed.
+  const clearOpenParam = useCallback(() => {
+    if (!initialOpenVehicleId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("open");
+    window.history.replaceState(null, "", url);
+  }, [initialOpenVehicleId]);
   const openPanel = useCallback(
     (vehicleId: string) => setPanel((prev) => ({ vehicleId, open: true, openCount: (prev?.openCount ?? 0) + 1 })),
     []
@@ -1231,7 +1246,20 @@ export function VehiclesTable({
           vehicle={panelVehicle}
           canManage={canManage}
           open={panel.open}
-          onOpenChange={(next) => setPanel((prev) => (prev ? { ...prev, open: next } : prev))}
+          onOpenChange={(next) => {
+            setPanel((prev) => (prev ? { ...prev, open: next } : prev));
+            if (!next) clearOpenParam();
+          }}
+        />
+      )}
+      {!canManage && (
+        <VehicleDetailsDialog
+          vehicleId={summaryVehicleId}
+          reg={rows.find((r) => r.id === summaryVehicleId)?.current_plate ?? null}
+          onClose={() => {
+            setSummaryVehicleId(null);
+            clearOpenParam();
+          }}
         />
       )}
 

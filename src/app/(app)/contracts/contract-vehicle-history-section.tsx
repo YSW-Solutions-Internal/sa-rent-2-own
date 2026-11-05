@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +51,11 @@ export function ContractVehicleHistorySection({ contractId }: { contractId: stri
             <TableBody>
               {entries.map((entry) => (
                 <TableRow key={entry.id}>
-                  <TableCell>{entry.file_no}</TableCell>
+                  <TableCell>
+                    <Link href={`/vehicles?open=${entry.vehicle_id}`} className="text-primary font-medium underline-offset-4 hover:underline">
+                      {entry.file_no}
+                    </Link>
+                  </TableCell>
                   <TableCell>{entry.plate ?? "—"}</TableCell>
                   <TableCell>{formatDisplayDate(entry.effective_from)}</TableCell>
                   <TableCell>

@@ -4,6 +4,7 @@ import { createClient as createSupabaseServerClient } from "@/lib/supabase/serve
 
 export interface ContractVehicleHistoryEntry {
   id: string;
+  vehicle_id: string;
   effective_from: string;
   effective_to: string | null;
   file_no: string;
@@ -40,6 +41,7 @@ export async function listContractVehicleHistory(
 
   const rows: ContractVehicleHistoryEntry[] = assignments.map((a) => ({
     id: a.id,
+    vehicle_id: a.vehicle_id,
     effective_from: a.effective_from,
     effective_to: a.effective_to,
     file_no: fileNoByVehicle.get(a.vehicle_id) ?? "Unknown vehicle",
