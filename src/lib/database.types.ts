@@ -599,6 +599,15 @@ export interface Database {
         Row: Database["public"]["Tables"]["contracts"]["Row"];
         Relationships: [];
       };
+      payment_monthly_totals: {
+        Row: {
+          month: string;
+          collected: number;
+          reversed: number;
+          net: number;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       whatsapp_save_service: {

@@ -113,13 +113,17 @@ export default async function PaymentsPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [allTransactions, { data: contracts }, { data: clients }, { data: registrations }] = await Promise.all([
+  const [allTransactions, { data: contracts }, { data: clients }, { data: registrations }, { data: monthlyRows }] = await Promise.all([
     fetchAllTransactions(supabase),
     supabase
       .from("contracts")
       .select("id, deal_number, client_id, vehicle_id, payment_method, outstanding_balance"),
     supabase.from("clients").select("id, full_name, blacklisted"),
     supabase.from("vehicle_registrations").select("vehicle_id, plate_number").is("effective_to", null),
+    // Per-month totals come pre-aggregated from a view (every month, not just the latest 12).
+    showFinancials
+      ? supabase.from("payment_monthly_totals").select("month, collected, reversed, net").order("month")
+      : Promise.resolve({ data: [] as { month: string; collected: number; reversed: number; net: number }[] }),
   ]);
 
   const cashContractIds = new Set((contracts ?? []).filter((c) => c.payment_method === "cash").map((c) => c.id));
@@ -143,7 +147,6 @@ export default async function PaymentsPage() {
     { netCollected: number; reversalCount: number; transactionCount: number; lastDate: string; lastType: "receipt" | "debit_note" }
   >();
   const monthlyTotals = new Map<string, number>();
-  const monthlyReversedTotals = new Map<string, number>();
   // Per-contract, per-month net — feeds the report table.
   const monthlyByContract = new Map<string, Map<string, number>>();
   const firstMonthByContract = new Map<string, string>();
@@ -165,9 +168,6 @@ export default async function PaymentsPage() {
 
     const key = monthKey(t.transaction_date);
     monthlyTotals.set(key, (monthlyTotals.get(key) ?? 0) + t.cash_effect);
-    if (t.type === "debit_note") {
-      monthlyReversedTotals.set(key, (monthlyReversedTotals.get(key) ?? 0) + Math.abs(t.cash_effect));
-    }
 
     if (!monthlyByContract.has(t.contract_id)) monthlyByContract.set(t.contract_id, new Map());
     const contractMonths = monthlyByContract.get(t.contract_id)!;
@@ -192,11 +192,11 @@ export default async function PaymentsPage() {
   }));
 
   const sortedMonthKeys = [...monthlyTotals.keys()].sort();
-  const recentMonthKeys = sortedMonthKeys.slice(-MONTHS_SHOWN);
-  const monthlyData: MonthlyCollectedDatum[] = recentMonthKeys.map((key) => ({
-    month: MONTH_LABEL.format(new Date(`${key}-01T00:00:00Z`)),
-    netCollected: monthlyTotals.get(key) ?? 0,
-    reversed: monthlyReversedTotals.get(key) ?? 0,
+  const monthlyData: MonthlyCollectedDatum[] = (monthlyRows ?? []).map((r) => ({
+    month: MONTH_LABEL.format(new Date(`${r.month}T00:00:00Z`)),
+    collected: Number(r.collected),
+    reversed: Number(r.reversed),
+    total: Number(r.net),
   }));
 
   const netCollected = [...monthlyTotals.values()].reduce((sum, v) => sum + v, 0);

@@ -8,9 +8,14 @@ function formatRand(value: number): string {
   return `R${value.toLocaleString()}`;
 }
 
+// Every month is shown, so give each one room and scroll sideways once the chart outgrows the card.
+const MIN_WIDTH_PER_MONTH = 84;
+
 export function MonthlyCollectionsChartClient({ data }: { data: MonthlyCollectedDatum[] }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <div className="h-full overflow-x-auto">
+      <div className="h-full" style={{ minWidth: data.length * MIN_WIDTH_PER_MONTH }}>
+        <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
         <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
@@ -26,15 +31,12 @@ export function MonthlyCollectionsChartClient({ data }: { data: MonthlyCollected
           }}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Bar
-          dataKey="netCollected"
-          name="Net collected"
-          fill="var(--brand-blue-dark)"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={36}
-        />
-        <Bar dataKey="reversed" name="Reversed" fill="var(--brand-red)" radius={[4, 4, 0, 0]} maxBarSize={36} />
+        <Bar dataKey="collected" name="Collected" fill="var(--brand-blue-dark)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+        <Bar dataKey="reversed" name="Reversed" fill="var(--brand-red)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+        <Bar dataKey="total" name="Total (collected − reversed)" fill="var(--foreground)" radius={[4, 4, 0, 0]} maxBarSize={28} />
       </BarChart>
-    </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }

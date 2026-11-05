@@ -80,7 +80,7 @@ export function PaymentsViewSwitcher({
           />
 
           <div className="h-64 rounded-lg border bg-background p-4">
-            <h3 className="mb-3 font-semibold tracking-tight">Monthly net collected</h3>
+            <h3 className="mb-3 font-semibold tracking-tight">Monthly collected, reversed and total</h3>
             <div className="h-[calc(100%-2rem)]">
               <MonthlyCollectionsChartClient data={monthlyData} />
             </div>

@@ -13,8 +13,10 @@ export interface ContractPaymentSummaryRow {
 
 export interface MonthlyCollectedDatum {
   month: string; // "Jan 2026"
-  netCollected: number;
+  collected: number;
   reversed: number;
+  /** collected - reversed */
+  total: number;
 }
 
 export interface MonthlyReportCell {
