@@ -2,7 +2,7 @@
 
 import { ClientName } from "@/components/blacklist-flag";
 import { useState, useTransition } from "react";
-import { useForm, type FieldErrors } from "react-hook-form";
+import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -123,6 +123,7 @@ function toFormValues(contract?: ContractWithDetails): ContractFormValues {
     billingDirection: contract.billing_direction,
     billingFrequency: contract.billing_frequency,
     billingStatus: contract.billing_status,
+    vehicleChangeDate: new Date().toISOString().slice(0, 10),
   };
 }
 
@@ -186,6 +187,17 @@ export function ContractPanel({
   });
 
   const [tab, setTab] = useState<ContractTab>("deal");
+  // Existing contract: the vehicle shows as plain text until "Change vehicle" is pressed.
+  const [changingVehicle, setChangingVehicle] = useState(false);
+  const chosenVehicleId = useWatch({ control: form.control, name: "vehicleId" });
+  const vehicleSwapped = isEditing && changingVehicle && chosenVehicleId !== "" && chosenVehicleId !== contract!.vehicle_id;
+
+  function cancelVehicleChange() {
+    setChangingVehicle(false);
+    form.setValue("vehicleId", contract!.vehicle_id, { shouldDirty: false });
+    form.setValue("vehicleChangeDate", new Date().toISOString().slice(0, 10));
+    form.setValue("vehicleChangeReason", "");
+  }
   // A save blocked by validation jumps to the tab holding the first bad field.
   function onInvalid(errors: FieldErrors<ContractFormValues>) {
     const first = Object.keys(errors)[0];
@@ -213,10 +225,12 @@ export function ContractPanel({
   // in the "available" list passed in — make sure they still show up.
   const allVehicles = [...newVehicles.filter((n) => !vehicles.some((v) => v.id === n.id)), ...vehicles];
   const allClients = [...newClients.filter((n) => !clients.some((c) => c.id === n.id)), ...clients];
-  const vehicleOptions =
-    isEditing && !allVehicles.some((v) => v.id === contract!.vehicle_id)
-      ? [{ id: contract!.vehicle_id, label: "(current vehicle)" }, ...allVehicles]
-      : allVehicles;
+  const currentVehicleLabel = contract?.vehicleLabel ?? "(current vehicle)";
+  const vehicleOptions = isEditing
+    ? changingVehicle
+      ? allVehicles.filter((v) => v.id !== contract!.vehicle_id) // pick a replacement
+      : [{ id: contract!.vehicle_id, label: currentVehicleLabel }]
+    : allVehicles;
   const clientOptions = (
     isEditing && !allClients.some((c) => c.id === contract!.client_id)
       ? [{ id: contract!.client_id, label: "(current client)" }, ...allClients]
@@ -237,6 +251,7 @@ export function ContractPanel({
         if (next) {
           form.reset(toFormValues(contract));
           setTab("deal");
+          setChangingVehicle(false);
         }
       }}
     >
@@ -276,25 +291,77 @@ export function ContractPanel({
                   <FormItem>
                     <div className="flex items-center justify-between gap-2">
                       <FormLabel>Vehicle</FormLabel>
-                      {!readOnly && (
-                        <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setVehicleFormOpen(true)}>
-                          <Plus />
-                          Add new vehicle
-                        </Button>
+                      {!readOnly && (!isEditing || changingVehicle) && (
+                        <div className="flex items-center gap-3">
+                          <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setVehicleFormOpen(true)}>
+                            <Plus />
+                            Add new vehicle
+                          </Button>
+                          {isEditing && (
+                            <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={cancelVehicleChange}>
+                              Cancel change
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <SearchableSelect
-                      value={field.value}
-                      onChange={field.onChange}
-                      options={vehicleOptions}
-                      placeholder="Select vehicle"
-                      searchPlaceholder="Search reg, file no, make, model…"
-                      emptyText="No available vehicle matches"
-                    />
+                    {isEditing && !changingVehicle ? (
+                      <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm">
+                        <span>{currentVehicleLabel}</span>
+                        {!readOnly && (
+                          <Button type="button" variant="outline" size="sm" onClick={() => setChangingVehicle(true)}>
+                            Change vehicle
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <SearchableSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={vehicleOptions}
+                        placeholder={isEditing ? "Select the replacement vehicle" : "Select vehicle"}
+                        searchPlaceholder="Search reg, file no, make, model…"
+                        emptyText="No available vehicle matches"
+                      />
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              {vehicleSwapped && (
+                <div className="bg-muted/30 col-span-full grid gap-4 rounded-md border p-3 sm:grid-cols-2">
+                  <p className="text-muted-foreground col-span-full text-sm">
+                    {currentVehicleLabel} comes off this contract and the vehicle chosen above goes on. The old vehicle
+                    stays in the history and is free to put on another contract.
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name="vehicleChangeDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Change effective from</FormLabel>
+                        <FormControl>
+                          <Input type="date" max={new Date().toISOString().slice(0, 10)} {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="vehicleChangeReason"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Reason (optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. accident, replaced under warranty" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="clientId"

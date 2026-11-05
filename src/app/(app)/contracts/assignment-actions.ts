@@ -8,6 +8,7 @@ export interface ContractVehicleHistoryEntry {
   effective_to: string | null;
   file_no: string;
   plate: string | null;
+  reason: string | null;
 }
 
 export async function listContractVehicleHistory(
@@ -16,7 +17,7 @@ export async function listContractVehicleHistory(
   const supabase = await createSupabaseServerClient();
   const { data: assignments, error } = await supabase
     .from("contract_vehicle_assignments")
-    .select("id, vehicle_id, effective_from, effective_to")
+    .select("id, vehicle_id, effective_from, effective_to, reason")
     .eq("contract_id", contractId)
     .order("effective_from", { ascending: false });
 
@@ -43,6 +44,7 @@ export async function listContractVehicleHistory(
     effective_to: a.effective_to,
     file_no: fileNoByVehicle.get(a.vehicle_id) ?? "Unknown vehicle",
     plate: plateByVehicle.get(a.vehicle_id) ?? null,
+    reason: a.reason,
   }));
 
   return { data: rows };

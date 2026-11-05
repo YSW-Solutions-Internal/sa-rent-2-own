@@ -9,6 +9,8 @@ import type {
 
 export interface ContractWithDetails {
   id: string;
+  /** Display label of the current vehicle (file no · reg · year make model), when known. */
+  vehicleLabel?: string;
   vehicle_id: string;
   client_id: string;
   contract_type: ContractType;

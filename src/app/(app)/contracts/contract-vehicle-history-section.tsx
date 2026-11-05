@@ -44,6 +44,7 @@ export function ContractVehicleHistorySection({ contractId }: { contractId: stri
                 <TableHead>Reg</TableHead>
                 <TableHead>From</TableHead>
                 <TableHead>To</TableHead>
+                <TableHead>Reason</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -59,6 +60,7 @@ export function ContractVehicleHistorySection({ contractId }: { contractId: stri
                       <Badge variant="success">Current</Badge>
                     )}
                   </TableCell>
+                  <TableCell className="text-muted-foreground">{entry.reason ?? "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

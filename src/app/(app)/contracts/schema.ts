@@ -37,6 +37,9 @@ export const contractFormSchema = z.object({
   billingDirection: z.enum(billingDirectionValues).optional(),
   billingFrequency: z.enum(billingFrequencyValues).optional(),
   billingStatus: z.enum(billingStatusValues).optional(),
+  // Only used when an existing contract's vehicle is swapped for another.
+  vehicleChangeDate: z.string().optional(),
+  vehicleChangeReason: z.string().optional(),
 });
 
 export type ContractFormValues = z.infer<typeof contractFormSchema>;

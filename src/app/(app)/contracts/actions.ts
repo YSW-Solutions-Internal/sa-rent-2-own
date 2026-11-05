@@ -124,7 +124,10 @@ export async function createContract(raw: ContractFormValues): Promise<ActionRes
     return { error: friendlyInsertError(error ?? { message: "unknown" }) };
   }
 
-  await syncVehicleAssignment(supabase, contract.id, values.vehicleId, values.startDate);
+  const syncError = await syncVehicleAssignment(supabase, contract.id, values.vehicleId, values.startDate);
+  if (syncError) {
+    return { error: `Contract created, but ${syncError.charAt(0).toLowerCase()}${syncError.slice(1)}` };
+  }
 
   revalidatePath("/contracts");
   revalidatePath("/vehicles");
@@ -143,6 +146,26 @@ export async function updateContract(
   const values = parsed.data;
 
   const supabase = await createSupabaseServerClient();
+
+  // Swapping the vehicle: check the change date before touching anything.
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: existing } = await supabase.from("contracts").select("vehicle_id").eq("id", contractId).maybeSingle();
+  if (!existing) return { error: "Contract not found" };
+  const vehicleChanged = existing.vehicle_id !== values.vehicleId;
+  const changeDate = values.vehicleChangeDate || today;
+  if (vehicleChanged) {
+    if (changeDate > today) return { error: "The vehicle change date can't be in the future" };
+    const { data: open } = await supabase
+      .from("contract_vehicle_assignments")
+      .select("effective_from")
+      .eq("contract_id", contractId)
+      .is("effective_to", null)
+      .maybeSingle();
+    if (open && changeDate < open.effective_from) {
+      return { error: `The vehicle change date can't be before the current vehicle went on (${open.effective_from})` };
+    }
+  }
+
   const row = await toContractRow(supabase, values);
   const { error } = await supabase.from("contracts").update(row).eq("id", contractId);
 
@@ -150,12 +173,18 @@ export async function updateContract(
     return { error: friendlyInsertError(error) };
   }
 
-  await syncVehicleAssignment(
+  const syncError = await syncVehicleAssignment(
     supabase,
     contractId,
     values.vehicleId,
-    new Date().toISOString().slice(0, 10)
+    changeDate,
+    values.vehicleChangeReason
   );
+  if (syncError) {
+    // Put the contract back on its old vehicle so the two records agree.
+    await supabase.from("contracts").update({ vehicle_id: existing.vehicle_id }).eq("id", contractId);
+    return { error: `${syncError}. The vehicle was not changed.` };
+  }
 
   revalidatePath("/contracts");
   revalidatePath("/vehicles");
