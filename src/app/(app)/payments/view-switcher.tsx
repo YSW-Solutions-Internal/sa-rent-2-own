@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { PaymentsStatsCards } from "./stats-cards";
@@ -12,6 +14,7 @@ import type {
   ContractPaymentSummaryRow,
   MonthlyCollectedDatum,
   PaymentTransactionRow,
+  TransactionsFilters,
 } from "./types";
 
 export function PaymentsViewSwitcher({
@@ -20,6 +23,8 @@ export function PaymentsViewSwitcher({
   monthLabels,
   summaryRows,
   transactionRows,
+  transactionsTotal,
+  transactionsFilters,
   monthlyData,
   netCollected,
   lastMonthLabel,
@@ -27,6 +32,7 @@ export function PaymentsViewSwitcher({
   contractsInArrears,
   contractsTracked,
   exportedBy,
+  initialTab,
 }: {
   /** Admin only: the Dashboard tab and the Outstanding column/total. */
   showFinancials: boolean;
@@ -34,6 +40,9 @@ export function PaymentsViewSwitcher({
   monthLabels: string[];
   summaryRows: ContractPaymentSummaryRow[];
   transactionRows: PaymentTransactionRow[];
+  /** Count of every row matching the current filters, not just this page. */
+  transactionsTotal: number;
+  transactionsFilters: TransactionsFilters;
   monthlyData: MonthlyCollectedDatum[];
   netCollected: number;
   lastMonthLabel: string | null;
@@ -41,9 +50,19 @@ export function PaymentsViewSwitcher({
   contractsInArrears: number;
   contractsTracked: number;
   exportedBy: string;
+  /** From the URL's ?tab= param, so a Transactions-tab filter change (a
+   * real navigation) reopens on that tab instead of resetting to Report. */
+  initialTab: "report" | "transactions";
 }) {
+  // Uncontrolled would be simpler, but Report/Dashboard switches must
+  // stay instant (no navigation) while Transactions filter changes do
+  // navigate (see transactions-table.tsx) and need the tab to survive
+  // that round trip — hence local state seeded from the URL rather than
+  // a plain defaultValue.
+  const [tab, setTab] = useState<string>(initialTab);
+
   return (
-    <Tabs defaultValue="report" className="flex min-h-0 flex-1 flex-col gap-4">
+    <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-4">
       {/* Title and tabs share one row so the tabs don't cost a line of vertical space. */}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
@@ -91,7 +110,12 @@ export function PaymentsViewSwitcher({
       )}
 
       <TabsContent value="transactions" className="flex min-h-0 flex-1 flex-col">
-        <TransactionsTable rows={transactionRows} exportedBy={exportedBy} />
+        <TransactionsTable
+          rows={transactionRows}
+          total={transactionsTotal}
+          filters={transactionsFilters}
+          exportedBy={exportedBy}
+        />
       </TabsContent>
     </Tabs>
   );

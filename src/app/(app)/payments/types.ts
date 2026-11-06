@@ -45,6 +45,27 @@ export interface ContractMonthlyReportRow {
   missedCount: number;
 }
 
+// Shared between the server-only query builder (transactions-query.ts)
+// and the client-side Transactions tab — kept here, not in
+// transactions-query.ts, since that file is `import "server-only"`'d and
+// a client component importing even a plain constant from it would throw.
+export const TRANSACTIONS_PAGE_SIZE = 250;
+export type TransactionsSortKey = "date" | "deal" | "client" | "amount";
+export type TransactionsTypeFilter = "all" | "receipt" | "debit_note";
+
+export interface TransactionsFilters {
+  q: string;
+  type: TransactionsTypeFilter;
+  sort: TransactionsSortKey;
+  /** The *real* database order direction — not the client-side table
+   * hook's historical "asc secretly means newest-first for the date
+   * column" trick. desc = newest/highest first, for every column. */
+  dir: "asc" | "desc";
+  /** 1-indexed. */
+  page: number;
+  all?: boolean;
+}
+
 export interface PaymentTransactionRow {
   id: string;
   transactionDate: string;

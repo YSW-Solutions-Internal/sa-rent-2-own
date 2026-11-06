@@ -628,6 +628,25 @@ export interface Database {
         };
         Relationships: [];
       };
+      payment_transactions_detail: {
+        Row: {
+          id: string;
+          contract_id: string;
+          transaction_date: string;
+          type: "receipt" | "debit_note";
+          reference: string;
+          invoice_reference: string;
+          cash_effect: number;
+          reversed_transaction_id: string | null;
+          deal_number: string | null;
+          payment_method: PaymentMethod | null;
+          vehicle_id: string | null;
+          client_name: string | null;
+          client_blacklisted: boolean;
+          reg: string | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       whatsapp_save_service: {

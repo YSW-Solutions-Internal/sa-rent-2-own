@@ -3,91 +3,23 @@ import { redirect } from "next/navigation";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
-import type { PaymentTransactionType } from "@/lib/database.types";
 
 import { PaymentsViewSwitcher } from "./view-switcher";
+import { buildTransactionsQuery, toTransactionRow } from "./transactions-query";
 import type {
   ContractMonthlyReportRow,
   ContractPaymentSummaryRow,
   MonthlyCollectedDatum,
   MonthlyReportCell,
-  PaymentTransactionRow,
+  TransactionsSortKey,
+  TransactionsTypeFilter,
 } from "./types";
 
 const MONTHS_SHOWN = 12;
 const MONTH_LABEL = new Intl.DateTimeFormat("en-ZA", { month: "short", year: "numeric" });
-const PAGE_SIZE = 1000;
 
-interface TransactionRow {
-  id: string;
-  contract_id: string;
-  transaction_date: string;
-  type: PaymentTransactionType;
-  reference: string;
-  invoice_reference: string;
-  cash_effect: number;
-  reversed_transaction_id: string | null;
-}
-
-const TRANSACTION_SELECT =
-  "id, contract_id, transaction_date, type, reference, invoice_reference, cash_effect, reversed_transaction_id";
-
-/** PostgREST caps an unpaginated select at 1000 rows by default — with
- * 3,600+ transactions and counting, a plain .select() here silently
- * dropped everything after the 1000th row (ordered oldest-first, so the
- * UI looked like history just stopped in late 2024). Page through with
- * .range() instead of trusting a single request to return everything.
- *
- * Ordering by transaction_date alone isn't a *stable* sort — many rows
- * share the same date (a batch run's receipts), so Postgres doesn't
- * guarantee the same relative order for tied rows across two separate
- * requests. Without a unique tiebreaker, that let the same row land in
- * two different pages (seen as a duplicate React key on id) while
- * another row could just as easily have been skipped between pages.
- * Ordering by (transaction_date, id) makes every page's boundary
- * deterministic, so pages never overlap or gap.
- *
- * Pages are fired in parallel waves rather than awaited one at a time —
- * a separate upfront count query would add a full extra round trip to
- * the critical path before any real data could even start loading, and
- * sequential .range() awaits were the bigger cost before that. A wave
- * covers comfortably more than today's ~3,600 rows, so in practice this
- * resolves in a single wave; it only reaches for a second wave once the
- * ledger actually grows past that.
- */
-async function fetchAllTransactions(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>
-): Promise<TransactionRow[]> {
-  const WAVE_SIZE = 5; // 5,000 rows of headroom per wave
-  const all: TransactionRow[] = [];
-  let pageIndex = 0;
-  let reachedEnd = false;
-
-  while (!reachedEnd) {
-    const wave = await Promise.all(
-      Array.from({ length: WAVE_SIZE }, (_, i) => {
-        const page = pageIndex + i;
-        return supabase
-          .from("payment_transactions")
-          .select(TRANSACTION_SELECT)
-          .order("transaction_date", { ascending: true })
-          .order("id", { ascending: true })
-          .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-      })
-    );
-    pageIndex += WAVE_SIZE;
-
-    for (const { data, error } of wave) {
-      if (error || !data || data.length === 0) {
-        reachedEnd = true;
-        continue;
-      }
-      all.push(...data);
-      if (data.length < PAGE_SIZE) reachedEnd = true;
-    }
-  }
-
-  return all;
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function monthKey(dateStr: string): string {
@@ -101,7 +33,10 @@ function monthKeyMinus(key: string, n: number): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-export default async function PaymentsPage() {
+const SORT_KEYS: readonly TransactionsSortKey[] = ["date", "deal", "client", "amount"];
+const TYPE_FILTERS: readonly TransactionsTypeFilter[] = ["all", "receipt", "debit_note"];
+
+export default async function PaymentsPage({ searchParams }: PageProps<"/payments">) {
   const profile = await getCurrentProfile();
   if (!profile || !canViewContracts(profile.role)) {
     redirect("/");
@@ -111,10 +46,31 @@ export default async function PaymentsPage() {
   // server so none of it is ever sent to their browser.
   const showFinancials = canSeeFinancials(profile.role);
 
+  const params = await searchParams;
+  // The Transactions tab's search/filter/sort/page live in the URL (not
+  // local component state) so a filter change can be a real server-side
+  // query instead of filtering thousands of already-downloaded rows —
+  // and so the tab a filter change was made from survives the resulting
+  // navigation instead of the page resetting to Report.
+  const initialTab = firstParam(params.tab) === "transactions" ? "transactions" : "report";
+  const txQ = firstParam(params.tx_q) ?? "";
+  const txTypeParam = firstParam(params.tx_type);
+  const txType: TransactionsTypeFilter = TYPE_FILTERS.includes(txTypeParam as TransactionsTypeFilter)
+    ? (txTypeParam as TransactionsTypeFilter)
+    : "all";
+  const txSortParam = firstParam(params.tx_sort);
+  const txSort: TransactionsSortKey = SORT_KEYS.includes(txSortParam as TransactionsSortKey)
+    ? (txSortParam as TransactionsSortKey)
+    : "date";
+  const txDir: "asc" | "desc" = firstParam(params.tx_dir) === "asc" ? "asc" : "desc";
+  const txAll = firstParam(params.tx_page) === "all";
+  const txPageNum = Math.max(1, Number(firstParam(params.tx_page)) || 1);
+  const txFilters = { q: txQ, type: txType, sort: txSort, dir: txDir, page: txPageNum, all: txAll };
+
   const supabase = await createSupabaseServerClient();
 
   const [
-    allTransactions,
+    { data: transactionRowsRaw, count: transactionsTotal },
     { data: contracts },
     { data: clients },
     { data: registrations },
@@ -122,10 +78,11 @@ export default async function PaymentsPage() {
     { data: contractSummaries },
     { data: contractMonthlies },
   ] = await Promise.all([
-    // Still needed raw for the flat Transactions tab (item 32's
-    // remaining step — paging/windowing that list — is its own
-    // follow-up; everything else below now reads from views instead).
-    fetchAllTransactions(supabase),
+    // Only the Transactions tab's current page/filter/search/sort — the
+    // join view (payment_transactions_detail) and the role-based cash
+    // filter are applied in the query itself, not after fetching
+    // everything (see buildTransactionsQuery).
+    buildTransactionsQuery(supabase, showFinancials, txFilters),
     supabase
       .from("contracts")
       .select("id, deal_number, client_id, vehicle_id, payment_method, outstanding_balance"),
@@ -147,9 +104,6 @@ export default async function PaymentsPage() {
   ]);
 
   const cashContractIds = new Set((contracts ?? []).filter((c) => c.payment_method === "cash").map((c) => c.id));
-  const transactions = showFinancials
-    ? allTransactions
-    : allTransactions.filter((t) => !cashContractIds.has(t.contract_id));
   const contractSummaryRows = showFinancials
     ? (contractSummaries ?? [])
     : (contractSummaries ?? []).filter((r) => !cashContractIds.has(r.contract_id));
@@ -241,22 +195,9 @@ export default async function PaymentsPage() {
 
   const monthLabels = windowKeys.map((key) => MONTH_LABEL.format(new Date(`${key}-01T00:00:00Z`)));
 
-  // Most-recent-first, individual-transaction view — the flat ledger
-  // underneath the per-contract rollups above.
-  const transactionRows: PaymentTransactionRow[] = [...transactions].reverse().map((t) => ({
-    id: t.id,
-    transactionDate: t.transaction_date,
-    dealNumber: dealNumberByContract.get(t.contract_id) ?? null,
-    clientName: clientNameById.get(clientIdByContract.get(t.contract_id) ?? "") ?? "Unknown client",
-    clientBlacklisted: blacklistedClientIds.has(clientIdByContract.get(t.contract_id) ?? ""),
-    reg: plateByVehicle.get(vehicleIdByContract.get(t.contract_id) ?? "") ?? null,
-    vehicleId: vehicleIdByContract.get(t.contract_id) ?? null,
-    type: t.type,
-    reference: t.reference,
-    invoiceReference: t.invoice_reference,
-    cashEffect: t.cash_effect,
-    reversed: t.reversed_transaction_id !== null,
-  }));
+  // Already in the requested order straight from the query (default:
+  // most-recent-first) — no client-side sort needed.
+  const transactionRows = (transactionRowsRaw ?? []).map(toTransactionRow);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -266,6 +207,8 @@ export default async function PaymentsPage() {
         monthLabels={monthLabels}
         summaryRows={showFinancials ? summaryRows : []}
         transactionRows={transactionRows}
+        transactionsTotal={transactionsTotal ?? transactionRows.length}
+        transactionsFilters={txFilters}
         monthlyData={showFinancials ? monthlyData : []}
         netCollected={showFinancials ? netCollected : 0}
         lastMonthLabel={showFinancials ? lastMonthLabel : null}
@@ -273,6 +216,7 @@ export default async function PaymentsPage() {
         contractsInArrears={showFinancials ? contractsInArrears : 0}
         contractsTracked={showFinancials ? summaryRows.length : 0}
         exportedBy={profile.fullName}
+        initialTab={initialTab}
       />
     </div>
   );
