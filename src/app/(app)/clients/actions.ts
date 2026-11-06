@@ -51,7 +51,7 @@ async function upsertBankingDetailsIfProvided(
   // Each field gets its own IV — AES-GCM requires a unique key+IV pair per
   // encryption; reusing one IV across two ciphertexts under the same key
   // would break both confidentiality and the authentication guarantee.
-  const holderEncrypted = encryptField(values.accountHolderName);
+  const holderEncrypted = encryptField(values.accountHolderName.trim().toUpperCase());
   const numberEncrypted = encryptField(values.accountNumber);
 
   const { error } = await supabase.from("client_banking_details").upsert(
