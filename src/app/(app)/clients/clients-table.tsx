@@ -18,7 +18,7 @@ import {
 import { ImageCaptureArea, SelectionActions } from "@/components/ui/selection-actions";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { exportToExcel, summarizeFilters, type ExportColumn } from "@/lib/export-to-excel";
+import type { ExportColumn } from "@/lib/export-to-excel";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
 import { formatSaPhoneForDisplay } from "@/lib/phone";
 import { useRowSelection } from "@/lib/use-row-selection";
@@ -104,7 +104,8 @@ export function ClientsTable({
     await copyNodeAsImage(captureRef.current, { count: selectedRows.length, filenamePrefix: "clients" });
   }
 
-  function handleExport() {
+  async function handleExport() {
+    const { exportToExcel, summarizeFilters } = await import("@/lib/export-to-excel");
     const columns: ExportColumn<ClientWithBanking>[] = [
       { header: "Name", value: (c) => c.full_name },
       { header: "Blacklisted", value: (c) => (c.blacklisted ? "Yes" : "") },

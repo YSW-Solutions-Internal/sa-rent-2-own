@@ -20,7 +20,7 @@ import { SortableHead } from "@/components/ui/sortable-head";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatButtonPill } from "@/components/dashboard/stat-pill";
 import { formatDisplayDate, isoDaysFromNow } from "@/lib/date-ranges";
-import { exportToExcel, summarizeFilters, type ExportColumn } from "@/lib/export-to-excel";
+import type { ExportColumn } from "@/lib/export-to-excel";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
 import { useRowSelection } from "@/lib/use-row-selection";
 import { compareNumbers, compareStrings, useTableControls } from "@/lib/use-table-controls";
@@ -169,7 +169,8 @@ export function ContractsTable({
     await copyNodeAsImage(captureRef.current, { count: selectedRows.length, filenamePrefix: "contracts" });
   }
 
-  function handleExport() {
+  async function handleExport() {
+    const { exportToExcel, summarizeFilters } = await import("@/lib/export-to-excel");
     const columns: ExportColumn<ContractRow>[] = [
       { header: "Deal number", value: (r) => r.deal_number ?? "" },
       { header: "Vehicle", value: (r) => r.vehicleLabel },

@@ -32,7 +32,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatButtonPill } from "@/components/dashboard/stat-pill";
 import { daysUntil, formatDayCount, formatDisplayDate, isoDaysFromNow } from "@/lib/date-ranges";
 import { dueDateColorScale, dueDateExcelChip } from "@/lib/due-date-color";
-import { exportToExcel, summarizeFilters, type ExportColumn } from "@/lib/export-to-excel";
+import type { ExportColumn } from "@/lib/export-to-excel";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
 import {
@@ -1112,7 +1112,8 @@ export function VehiclesTable({
     await copyNodeAsImage(captureRef.current, { count: selectedRows.length, filenamePrefix: "vehicles" });
   }
 
-  function handleExport() {
+  async function handleExport() {
+    const { exportToExcel, summarizeFilters } = await import("@/lib/export-to-excel");
     const columns: ExportColumn<VehicleWithRegistration>[] = visibleColumns.map((column) => ({
       header: COLUMN_LABELS[column],
       value: (vehicle) => exportValue(column, vehicle),

@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { RegButton, VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
-import { exportToExcel, summarizeFilters, type ExportColumn } from "@/lib/export-to-excel";
+import type { ExportColumn } from "@/lib/export-to-excel";
 import { useRowSelection } from "@/lib/use-row-selection";
 import { compareNumbers, compareStrings, useTableControls } from "@/lib/use-table-controls";
 import { cn } from "@/lib/utils";
@@ -126,7 +126,8 @@ export function MonthlyReportTable({
     storageKey: "payments-report-sort",
   });
 
-  function handleExport() {
+  async function handleExport() {
+    const { exportToExcel, summarizeFilters } = await import("@/lib/export-to-excel");
     const columns: ExportColumn<ContractMonthlyReportRow>[] = [
       { header: "Deal number", value: (r) => r.dealNumber ?? "" },
       { header: "Client", value: (r) => (r.clientBlacklisted ? `${r.clientName} (BLACKLISTED)` : r.clientName) },
