@@ -488,7 +488,19 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
     case "fileNo":
       return vehicle.file_no;
     case "make":
-      return vehicle.make ?? "—";
+      return canManage ? (
+        <InlineEditCell
+          vehicleId={vehicle.id}
+          field="make"
+          kind="text"
+          label="make"
+          value={vehicle.make}
+          display={vehicle.make ?? "—"}
+          renderPending={(draft) => draft}
+        />
+      ) : (
+        (vehicle.make ?? "—")
+      );
     case "model":
       return canManage ? (
         <InlineEditCell
@@ -504,13 +516,49 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
         (vehicle.model ?? "—")
       );
     case "year":
-      return vehicle.year ?? "—";
+      return canManage ? (
+        <InlineEditCell
+          vehicleId={vehicle.id}
+          field="year"
+          kind="number"
+          label="year"
+          value={vehicle.year}
+          display={vehicle.year ?? "—"}
+          renderPending={(draft) => draft}
+        />
+      ) : (
+        (vehicle.year ?? "—")
+      );
     case "colour":
       return <ColourCell vehicle={vehicle} canManage={canManage} />;
     case "vin":
-      return vehicle.vin ?? "—";
+      return canManage ? (
+        <InlineEditCell
+          vehicleId={vehicle.id}
+          field="vin"
+          kind="text"
+          label="VIN"
+          value={vehicle.vin}
+          display={vehicle.vin ?? "—"}
+          renderPending={(draft) => draft}
+        />
+      ) : (
+        (vehicle.vin ?? "—")
+      );
     case "engineNumber":
-      return vehicle.engine_number ?? "—";
+      return canManage ? (
+        <InlineEditCell
+          vehicleId={vehicle.id}
+          field="engine_number"
+          kind="text"
+          label="engine number"
+          value={vehicle.engine_number}
+          display={vehicle.engine_number ?? "—"}
+          renderPending={(draft) => draft}
+        />
+      ) : (
+        (vehicle.engine_number ?? "—")
+      );
     case "status":
       return <StatusCell vehicle={vehicle} canManage={canManage} />;
     case "legacyStatusNote":
@@ -570,11 +618,35 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
         (vehicle.next_service_km?.toLocaleString() ?? "—")
       );
     case "lastServicedBy":
-      return vehicle.last_serviced_by ?? "—";
+      return canManage ? (
+        <InlineEditCell
+          vehicleId={vehicle.id}
+          field="last_serviced_by"
+          kind="text"
+          label="last serviced by"
+          value={vehicle.last_serviced_by}
+          display={vehicle.last_serviced_by ?? "—"}
+          renderPending={(draft) => draft}
+        />
+      ) : (
+        (vehicle.last_serviced_by ?? "—")
+      );
     case "trackerRunning":
       return TRACKER_LABELS[vehicle.tracker_running];
     case "trackerSupplier":
-      return vehicle.tracker_supplier ?? "—";
+      return canManage ? (
+        <InlineEditCell
+          vehicleId={vehicle.id}
+          field="tracker_supplier"
+          kind="text"
+          label="tracker supplier"
+          value={vehicle.tracker_supplier}
+          display={vehicle.tracker_supplier ?? "—"}
+          renderPending={(draft) => draft}
+        />
+      ) : (
+        (vehicle.tracker_supplier ?? "—")
+      );
     case "natis":
       return vehicle.natis_on_file ? "On file" : "Missing";
     case "spareKey":

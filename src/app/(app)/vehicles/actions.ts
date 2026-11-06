@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
-import type { VehicleStatus } from "@/lib/database.types";
+import type { Database, VehicleStatus } from "@/lib/database.types";
 import { VEHICLE_COLOUR_OPTIONS } from "@/lib/vehicle-colours";
 import { vehicleFormSchema, vehicleStatusValues, type VehicleFormValues } from "./schema";
 
@@ -178,14 +178,26 @@ export async function updateVehicleColour(vehicleId: string, colour: string): Pr
   return {};
 }
 
-/** Fields the Vehicles table lets you edit by clicking the value. */
-const inlineEditableFields = ["current_mileage", "next_service_km", "next_service_date", "model"] as const;
-export type InlineEditableField = (typeof inlineEditableFields)[number];
+/** Fields the Vehicles table lets you edit by clicking the value, and how each validates. */
+const inlineFieldKinds = {
+  current_mileage: "number",
+  next_service_km: "number",
+  next_service_date: "date",
+  year: "number",
+  model: "text",
+  make: "text",
+  vin: "text",
+  engine_number: "text",
+  last_serviced_by: "text",
+  tracker_supplier: "text",
+} as const;
+type InlineEditableField = keyof typeof inlineFieldKinds;
+export type { InlineEditableField };
 
 /**
- * Updates one of the inline-editable service/mileage fields. `raw` is the
- * input's string value: "" clears the field; numbers must be whole and
- * non-negative; the date must be an ISO yyyy-mm-dd.
+ * Updates one of the inline-editable Vehicles table fields. `raw` is the
+ * input's string value: "" clears the field; "number" fields must be whole
+ * and non-negative; "date" must be an ISO yyyy-mm-dd; "text" is saved as-is.
  */
 export async function updateVehicleInlineField(
   vehicleId: string,
@@ -193,32 +205,28 @@ export async function updateVehicleInlineField(
   raw: string
 ): Promise<ActionResult> {
   await requireAdmin();
-  if (!inlineEditableFields.includes(field)) return { error: "Invalid field" };
+  const kind = inlineFieldKinds[field];
+  if (!kind) return { error: "Invalid field" };
 
   const trimmed = raw.trim();
   let value: number | string | null;
-  if (field === "next_service_date") {
-    if (trimmed === "") value = null;
-    else if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) && !Number.isNaN(Date.parse(trimmed))) value = trimmed;
-    else return { error: "Enter a valid date" };
-  } else if (field === "model") {
-    value = trimmed === "" ? null : trimmed;
-  } else if (trimmed === "") {
+  if (trimmed === "") {
     value = null;
-  } else {
+  } else if (kind === "date") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) && !Number.isNaN(Date.parse(trimmed))) value = trimmed;
+    else return { error: "Enter a valid date" };
+  } else if (kind === "number") {
     const n = Number(trimmed);
     if (!Number.isInteger(n) || n < 0) return { error: "Enter a whole number, 0 or more" };
     value = n;
+  } else {
+    value = trimmed;
   }
 
-  const patch =
-    field === "next_service_date"
-      ? { next_service_date: value as string | null }
-      : field === "current_mileage"
-        ? { current_mileage: value as number | null }
-        : field === "next_service_km"
-          ? { next_service_km: value as number | null }
-          : { model: value as string | null };
+  // `field` is a known vehicles column and `value`'s type was picked to
+  // match that column's kind above (number for "number", string for "date"
+  // and "text"), so this is a safe assertion, not a blind cast.
+  const patch = { [field]: value } as Database["public"]["Tables"]["vehicles"]["Update"];
 
   const supabase = await createClient();
   const { error } = await supabase.from("vehicles").update(patch).eq("id", vehicleId);
