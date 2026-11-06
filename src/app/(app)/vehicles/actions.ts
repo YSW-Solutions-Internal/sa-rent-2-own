@@ -179,7 +179,7 @@ export async function updateVehicleColour(vehicleId: string, colour: string): Pr
 }
 
 /** Fields the Vehicles table lets you edit by clicking the value. */
-const inlineEditableFields = ["current_mileage", "next_service_km", "next_service_date"] as const;
+const inlineEditableFields = ["current_mileage", "next_service_km", "next_service_date", "model"] as const;
 export type InlineEditableField = (typeof inlineEditableFields)[number];
 
 /**
@@ -201,6 +201,8 @@ export async function updateVehicleInlineField(
     if (trimmed === "") value = null;
     else if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) && !Number.isNaN(Date.parse(trimmed))) value = trimmed;
     else return { error: "Enter a valid date" };
+  } else if (field === "model") {
+    value = trimmed === "" ? null : trimmed;
   } else if (trimmed === "") {
     value = null;
   } else {
@@ -214,7 +216,9 @@ export async function updateVehicleInlineField(
       ? { next_service_date: value as string | null }
       : field === "current_mileage"
         ? { current_mileage: value as number | null }
-        : { next_service_km: value as number | null };
+        : field === "next_service_km"
+          ? { next_service_km: value as number | null }
+          : { model: value as string | null };
 
   const supabase = await createClient();
   const { error } = await supabase.from("vehicles").update(patch).eq("id", vehicleId);

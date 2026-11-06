@@ -26,7 +26,7 @@ export function InlineEditCell({
 }: {
   vehicleId: string;
   field: InlineEditableField;
-  kind: "number" | "date";
+  kind: "number" | "date" | "text";
   value: string | number | null;
   display: ReactNode;
   /** How to show a just-saved value before the refreshed row arrives. */
@@ -67,7 +67,7 @@ export function InlineEditCell({
     return (
       <Input
         autoFocus
-        type={kind === "date" ? "date" : "number"}
+        type={kind === "date" ? "date" : kind === "number" ? "number" : "text"}
         min={kind === "number" ? 0 : undefined}
         step={kind === "number" ? 1 : undefined}
         inputMode={kind === "number" ? "numeric" : undefined}
@@ -79,7 +79,7 @@ export function InlineEditCell({
           if (e.key === "Enter") finish(true);
           if (e.key === "Escape") finish(false);
         }}
-        className="h-7 w-36 px-2 text-sm"
+        className={cn("h-7 px-2 text-sm", kind === "text" ? "w-44" : "w-36")}
       />
     );
   }

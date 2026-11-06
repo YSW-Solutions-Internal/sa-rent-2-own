@@ -490,7 +490,19 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
     case "make":
       return vehicle.make ?? "—";
     case "model":
-      return vehicle.model ?? "—";
+      return canManage ? (
+        <InlineEditCell
+          vehicleId={vehicle.id}
+          field="model"
+          kind="text"
+          label="model"
+          value={vehicle.model}
+          display={vehicle.model ?? "—"}
+          renderPending={(draft) => draft}
+        />
+      ) : (
+        (vehicle.model ?? "—")
+      );
     case "year":
       return vehicle.year ?? "—";
     case "colour":
