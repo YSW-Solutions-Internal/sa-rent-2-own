@@ -5,6 +5,7 @@ import { z } from "zod";
 import { canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
 import type { UserRole } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { END_OF_CONTRACT_STATUSES, FLEET_STATUSES } from "@/lib/vehicle-status";
 
 /**
  * Read-only fleet queries for the WhatsApp bot. These run with the service
@@ -17,8 +18,7 @@ export interface ToolContext {
   role: UserRole;
 }
 
-const FLEET_STATUSES = ["on_road", "parked", "in_repair", "for_sale", "str", "rental", "courtesy"] as const;
-const ALL_STATUSES = [...FLEET_STATUSES, "sold", "written_off", "end_of_deal"] as const;
+const ALL_STATUSES = [...FLEET_STATUSES, ...END_OF_CONTRACT_STATUSES] as const;
 
 const MAX_ROWS = 25;
 const MAX_MATCHES = 15;

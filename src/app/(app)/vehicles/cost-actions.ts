@@ -12,6 +12,7 @@ export interface ActionResult {
 }
 
 const INVOICE_BUCKET = "vehicle-invoices";
+const MAX_INVOICE_BYTES = 10 * 1024 * 1024;
 
 export async function listVehicleCosts(
   vehicleId: string
@@ -69,6 +70,12 @@ export async function createVehicleCost(
   let invoiceFilePath: string | null = null;
   const file = formData.get("invoice");
   if (file instanceof File && file.size > 0) {
+    if (file.type !== "application/pdf") {
+      return { error: "Invoice must be a PDF" };
+    }
+    if (file.size > MAX_INVOICE_BYTES) {
+      return { error: "Invoice is too big (10MB max)" };
+    }
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
     const path = `${vehicleId}/${Date.now()}-${safeName}`;
     const { error: uploadError } = await supabase.storage
