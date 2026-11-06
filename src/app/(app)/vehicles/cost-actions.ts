@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
+import { requireAdmin } from "@/lib/auth/require-role";
 import { vehicleCostFormSchema, type VehicleCost } from "./costs-schema";
 
 export interface ActionResult {
@@ -101,6 +102,7 @@ export async function createVehicleCost(
 }
 
 export async function deleteVehicleCost(costId: string): Promise<ActionResult> {
+  await requireAdmin();
   const supabase = await createSupabaseServerClient();
 
   const { data: cost } = await supabase
