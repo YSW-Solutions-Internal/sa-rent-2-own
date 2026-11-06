@@ -608,6 +608,26 @@ export interface Database {
         };
         Relationships: [];
       };
+      payment_contract_summary: {
+        Row: {
+          contract_id: string;
+          net_collected: number;
+          reversal_count: number;
+          transaction_count: number;
+          first_transaction_date: string;
+          last_transaction_date: string;
+          last_type: "receipt" | "debit_note";
+        };
+        Relationships: [];
+      };
+      payment_contract_monthly: {
+        Row: {
+          contract_id: string;
+          month: string;
+          net_collected: number;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       whatsapp_save_service: {

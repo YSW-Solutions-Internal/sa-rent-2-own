@@ -113,7 +113,18 @@ export default async function PaymentsPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [allTransactions, { data: contracts }, { data: clients }, { data: registrations }, { data: monthlyRows }] = await Promise.all([
+  const [
+    allTransactions,
+    { data: contracts },
+    { data: clients },
+    { data: registrations },
+    { data: monthlyRows },
+    { data: contractSummaries },
+    { data: contractMonthlies },
+  ] = await Promise.all([
+    // Still needed raw for the flat Transactions tab (item 32's
+    // remaining step — paging/windowing that list — is its own
+    // follow-up; everything else below now reads from views instead).
     fetchAllTransactions(supabase),
     supabase
       .from("contracts")
@@ -124,12 +135,27 @@ export default async function PaymentsPage() {
     showFinancials
       ? supabase.from("payment_monthly_totals").select("month, collected, reversed, net").order("month", { ascending: false })
       : Promise.resolve({ data: [] as { month: string; collected: number; reversed: number; net: number }[] }),
+    // One row per contract that's ever had a transaction — feeds the
+    // Report tab's contract list + first-coverage month (both roles) and
+    // the Dashboard rollup/stat cards (admin only).
+    supabase
+      .from("payment_contract_summary")
+      .select("contract_id, net_collected, reversal_count, transaction_count, first_transaction_date, last_transaction_date, last_type"),
+    // One row per contract per month that had activity — feeds the
+    // Report tab's monthly matrix (both roles).
+    supabase.from("payment_contract_monthly").select("contract_id, month, net_collected"),
   ]);
 
   const cashContractIds = new Set((contracts ?? []).filter((c) => c.payment_method === "cash").map((c) => c.id));
   const transactions = showFinancials
     ? allTransactions
     : allTransactions.filter((t) => !cashContractIds.has(t.contract_id));
+  const contractSummaryRows = showFinancials
+    ? (contractSummaries ?? [])
+    : (contractSummaries ?? []).filter((r) => !cashContractIds.has(r.contract_id));
+  const contractMonthlyRows = showFinancials
+    ? (contractMonthlies ?? [])
+    : (contractMonthlies ?? []).filter((r) => !cashContractIds.has(r.contract_id));
 
   const dealNumberByContract = new Map((contracts ?? []).map((c) => [c.id, c.deal_number]));
   const clientIdByContract = new Map((contracts ?? []).map((c) => [c.id, c.client_id]));
@@ -140,58 +166,19 @@ export default async function PaymentsPage() {
   const outstandingBalanceByContract = new Map((contracts ?? []).map((c) => [c.id, c.outstanding_balance]));
   const plateByVehicle = new Map((registrations ?? []).map((r) => [r.vehicle_id, r.plate_number]));
 
-  // Per-contract rollup — rows are already ordered oldest-first, so the
-  // last write for a given contract is always its most recent transaction.
-  const byContract = new Map<
-    string,
-    { netCollected: number; reversalCount: number; transactionCount: number; lastDate: string; lastType: "receipt" | "debit_note" }
-  >();
-  const monthlyTotals = new Map<string, number>();
-  // Per-contract, per-month net — feeds the report table.
-  const monthlyByContract = new Map<string, Map<string, number>>();
-  const firstMonthByContract = new Map<string, string>();
-
-  for (const t of transactions) {
-    const existing = byContract.get(t.contract_id) ?? {
-      netCollected: 0,
-      reversalCount: 0,
-      transactionCount: 0,
-      lastDate: t.transaction_date,
-      lastType: t.type,
-    };
-    existing.netCollected += t.cash_effect;
-    existing.transactionCount += 1;
-    if (t.type === "debit_note") existing.reversalCount += 1;
-    existing.lastDate = t.transaction_date;
-    existing.lastType = t.type;
-    byContract.set(t.contract_id, existing);
-
-    const key = monthKey(t.transaction_date);
-    monthlyTotals.set(key, (monthlyTotals.get(key) ?? 0) + t.cash_effect);
-
-    if (!monthlyByContract.has(t.contract_id)) monthlyByContract.set(t.contract_id, new Map());
-    const contractMonths = monthlyByContract.get(t.contract_id)!;
-    contractMonths.set(key, (contractMonths.get(key) ?? 0) + t.cash_effect);
-
-    if (!firstMonthByContract.has(t.contract_id) || key < firstMonthByContract.get(t.contract_id)!) {
-      firstMonthByContract.set(t.contract_id, key);
-    }
-  }
-
-  const summaryRows: ContractPaymentSummaryRow[] = [...byContract.entries()].map(([contractId, agg]) => ({
-    contractId,
-    dealNumber: dealNumberByContract.get(contractId) ?? null,
-    clientName: clientNameById.get(clientIdByContract.get(contractId) ?? "") ?? "Unknown client",
-    clientBlacklisted: blacklistedClientIds.has(clientIdByContract.get(contractId) ?? ""),
-    lastTransactionDate: agg.lastDate,
-    lastStatus: agg.lastType === "debit_note" ? "reversed" : "cleared",
-    netCollected: agg.netCollected,
-    reversalCount: agg.reversalCount,
-    transactionCount: agg.transactionCount,
-    outstandingBalance: outstandingBalanceByContract.get(contractId) ?? null,
+  const summaryRows: ContractPaymentSummaryRow[] = contractSummaryRows.map((row) => ({
+    contractId: row.contract_id,
+    dealNumber: dealNumberByContract.get(row.contract_id) ?? null,
+    clientName: clientNameById.get(clientIdByContract.get(row.contract_id) ?? "") ?? "Unknown client",
+    clientBlacklisted: blacklistedClientIds.has(clientIdByContract.get(row.contract_id) ?? ""),
+    lastTransactionDate: row.last_transaction_date,
+    lastStatus: row.last_type === "debit_note" ? "reversed" : "cleared",
+    netCollected: Number(row.net_collected),
+    reversalCount: Number(row.reversal_count),
+    transactionCount: Number(row.transaction_count),
+    outstandingBalance: outstandingBalanceByContract.get(row.contract_id) ?? null,
   }));
 
-  const sortedMonthKeys = [...monthlyTotals.keys()].sort();
   const monthlyData: MonthlyCollectedDatum[] = (monthlyRows ?? []).map((r) => ({
     month: MONTH_LABEL.format(new Date(`${r.month}T00:00:00Z`)),
     collected: Number(r.collected),
@@ -199,23 +186,35 @@ export default async function PaymentsPage() {
     total: Number(r.net),
   }));
 
-  const netCollected = [...monthlyTotals.values()].reduce((sum, v) => sum + v, 0);
-  const lastMonthKey = sortedMonthKeys.at(-1) ?? null;
-  const lastMonthNetCollected = lastMonthKey ? (monthlyTotals.get(lastMonthKey) ?? 0) : 0;
+  const netCollected = (monthlyRows ?? []).reduce((sum, r) => sum + Number(r.net), 0);
+  const lastMonthKey = monthlyRows?.[0]?.month ? monthKey(monthlyRows[0].month) : null;
+  const lastMonthNetCollected = monthlyRows?.[0] ? Number(monthlyRows[0].net) : 0;
   const lastMonthLabel = lastMonthKey ? MONTH_LABEL.format(new Date(`${lastMonthKey}-01T00:00:00Z`)) : null;
   const contractsInArrears = summaryRows.filter((r) => r.lastStatus === "reversed").length;
 
   // Report window — anchored to the most recent month actually present in
-  // the data (not the real calendar "today"), the same choice the chart
-  // above makes: this is historical/imported data, and today's calendar
-  // date usually runs ahead of it, which would otherwise show every
-  // account "missing" trailing months that just haven't happened yet.
-  const windowEndKey = lastMonthKey ?? monthKey(new Date().toISOString());
+  // the (role-filtered) data, not the real calendar "today": this is
+  // historical/imported data, and today's calendar date usually runs
+  // ahead of it, which would otherwise show every account "missing"
+  // trailing months that just haven't happened yet.
+  const windowAnchorKey = contractSummaryRows.length
+    ? monthKey(contractSummaryRows.reduce((max, r) => (r.last_transaction_date > max ? r.last_transaction_date : max), contractSummaryRows[0].last_transaction_date))
+    : null;
+  const windowEndKey = windowAnchorKey ?? monthKey(new Date().toISOString());
   // Most recent month first — the report reads left-to-right as "now,
   // then going back", unlike the dashboard chart's chronological order.
   const windowKeys = Array.from({ length: MONTHS_SHOWN }, (_, i) => monthKeyMinus(windowEndKey, i));
 
-  const reportRows: ContractMonthlyReportRow[] = [...byContract.keys()].map((contractId) => {
+  const monthlyByContract = new Map<string, Map<string, number>>();
+  for (const row of contractMonthlyRows) {
+    if (!monthlyByContract.has(row.contract_id)) monthlyByContract.set(row.contract_id, new Map());
+    monthlyByContract.get(row.contract_id)!.set(monthKey(row.month), Number(row.net_collected));
+  }
+  const firstMonthByContract = new Map(
+    contractSummaryRows.map((row) => [row.contract_id, monthKey(row.first_transaction_date)])
+  );
+
+  const reportRows: ContractMonthlyReportRow[] = contractSummaryRows.map(({ contract_id: contractId }) => {
     const contractMonths = monthlyByContract.get(contractId) ?? new Map();
     const firstMonth = firstMonthByContract.get(contractId) ?? windowKeys[0];
     let missedCount = 0;
