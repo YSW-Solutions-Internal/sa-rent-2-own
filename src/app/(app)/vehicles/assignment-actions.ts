@@ -1,5 +1,7 @@
 "use server";
 
+import { getCurrentProfile } from "@/lib/auth/current-profile";
+import { canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 
 export interface VehicleContractHistoryEntry {
@@ -57,4 +59,45 @@ export async function listVehicleContractHistory(
   });
 
   return { data: rows };
+}
+
+/**
+ * Net cash collected for a vehicle across every contract it has been on
+ * (past and present). Admin / Fleet Manager only (matches the payments
+ * data's RLS); Fleet Managers don't see cash contracts, same as everywhere
+ * else. Returns `data: null` when the caller isn't allowed to see it.
+ */
+export async function getVehicleTotalCollected(
+  vehicleId: string
+): Promise<{ data?: number | null; error?: string }> {
+  const profile = await getCurrentProfile();
+  if (!profile || !canViewContracts(profile.role)) return { data: null };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: assignments, error } = await supabase
+    .from("contract_vehicle_assignments")
+    .select("contract_id")
+    .eq("vehicle_id", vehicleId);
+  if (error) return { error: "Couldn't load total collected" };
+
+  const contractIds = [...new Set((assignments ?? []).map((a) => a.contract_id))];
+  if (contractIds.length === 0) return { data: 0 };
+
+  let query = supabase
+    .from("payment_transactions")
+    .select("cash_effect")
+    .in("contract_id", contractIds);
+  if (!canSeeFinancials(profile.role)) {
+    const { data: cash } = await supabase
+      .from("contracts")
+      .select("id")
+      .in("id", contractIds)
+      .eq("payment_method", "cash");
+    const cashIds = (cash ?? []).map((c) => c.id);
+    if (cashIds.length > 0) query = query.not("contract_id", "in", `(${cashIds.join(",")})`);
+  }
+
+  const { data: rows, error: sumError } = await query;
+  if (sumError) return { error: "Couldn't load total collected" };
+  return { data: (rows ?? []).reduce((sum, r) => sum + Number(r.cash_effect), 0) };
 }

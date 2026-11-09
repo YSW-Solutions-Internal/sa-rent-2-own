@@ -48,6 +48,7 @@ import {
 } from "./schema";
 import type { VehicleWithRegistration } from "./types";
 import { VehicleCostsSection } from "./vehicle-costs-section";
+import { VehicleTotalCollectedCard } from "./vehicle-total-collected-card";
 import { VehicleContractHistorySection } from "./vehicle-contract-history-section";
 
 function toFormValues(vehicle?: VehicleWithRegistration): VehicleFormValues {
@@ -196,6 +197,7 @@ export function VehiclePanel({
           <Form {...form}>
             <form id="vehicle-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
               <PanelModalFormTab value="vehicle">
+              {isEditing && <VehicleTotalCollectedCard vehicleId={vehicle!.id} />}
               <section className="grid gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
