@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Paperclip, Plus, Trash2, User } from "lucide-react";
+import { Paperclip, Pencil, Plus, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -88,6 +89,7 @@ function CostsTable({
   canManage,
   isPending,
   onDelete,
+  onEdit,
 }: {
   costs: VehicleCost[];
   showType: boolean;
@@ -95,6 +97,7 @@ function CostsTable({
   canManage: boolean;
   isPending: boolean;
   onDelete: (costId: string) => void;
+  onEdit: (cost: VehicleCost) => void;
 }) {
   if (loading) {
     return (
@@ -127,7 +130,7 @@ function CostsTable({
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Invoice</TableHead>
             <TableHead>Logged by</TableHead>
-            <TableHead className="w-12" />
+            <TableHead className="w-24" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -159,6 +162,18 @@ function CostsTable({
               <TableCell className="whitespace-nowrap">{cost.recorded_by_name || "—"}</TableCell>
               <TableCell>
                 {canManage && (
+                  <div className="flex items-center">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Edit cost"
+                    title="Edit cost"
+                    disabled={isPending}
+                    onClick={() => onEdit(cost)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -185,6 +200,7 @@ function CostsTable({
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                  </div>
                 )}
               </TableCell>
             </TableRow>
@@ -214,6 +230,7 @@ export function VehicleCostsSection({
 }) {
   const [costs, setCosts] = useState<VehicleCost[] | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingCost, setEditingCost] = useState<VehicleCost | null>(null);
   const [activeTab, setActiveTab] = useState<TabValue>("all");
   const [isPending, startTransition] = useTransition();
 
@@ -296,7 +313,29 @@ export function VehicleCostsSection({
             canManage={canManage}
             isPending={isPending}
             onDelete={onDelete}
+            onEdit={setEditingCost}
           />
+
+          <Dialog open={editingCost !== null} onOpenChange={(next) => !next && setEditingCost(null)}>
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Edit cost</DialogTitle>
+                <DialogDescription>Change this cost entry.</DialogDescription>
+              </DialogHeader>
+              {editingCost && (
+                <AddCostForm
+                  key={editingCost.id}
+                  vehicleId={vehicleId}
+                  cost={editingCost}
+                  onSaved={() => {
+                    setEditingCost(null);
+                    refresh();
+                  }}
+                  onCancel={() => setEditingCost(null)}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
     </div>
   );
 }
