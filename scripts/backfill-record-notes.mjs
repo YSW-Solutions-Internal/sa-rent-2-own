@@ -6,11 +6,19 @@
  * one `record_notes` row per record, so the old text isn't lost once the
  * UI stops reading the column directly. `created_by` is left null (no
  * real author exists for this historical text) and is rendered as
- * "(imported)" by the Activity feed. The imported entry's timestamp uses
- * `updated_at` where the source table has one (clients, contracts,
- * insurance_claims — bumped on every write, so it reflects the last time
- * the notes text actually changed), falling back to `created_at` only
- * for vehicle_costs, which has neither.
+ * "(imported)" by the Activity feed.
+ *
+ * The imported entry's timestamp is the *earliest* audit_log row for that
+ * record where the notes field first became non-empty (audit_log has
+ * logged every contracts/clients/vehicle_costs/insurance_claims write
+ * since migration 20261029100000, which predates every notes-writing
+ * script this repo has — confirmed against prod: a contract's real
+ * arrears-update date, 2026-10-28, only shows up this way, not as
+ * row.created_at (the Oct 23 import date) or row.updated_at, which turned
+ * out to be contaminated by later, unrelated writes to the same row —
+ * both were tried and rejected before this version). Falls back to
+ * row.updated_at, then row.created_at, only for a record audit_log has
+ * no matching history for at all.
  *
  * Deliberately not split by the `[Arrears update Oct 2026]` /
  * `[Contract end review Oct 2026]` markers some contracts.notes values
@@ -46,15 +54,52 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 const SOURCE_TABLES = ["clients", "contracts", "vehicle_costs", "insurance_claims"];
-
-// Tables with an `updated_at` bumped by an unconditional `set_updated_at()`
-// trigger on every write — a far better proxy for "when was this note
-// text actually written" than `created_at` (a row's creation time, e.g.
-// the Oct 23 fleet reload import, is unrelated to a later UPDATE that
-// only touched `notes`, like the Oct 28 arrears-update script).
-// vehicle_costs has neither trigger nor column, so falls back to
-// created_at there.
 const HAS_UPDATED_AT = new Set(["clients", "contracts", "insurance_claims"]);
+
+/** A page of audit_log can hold any shape of diff depending on the action
+ * that produced it: insert/delete store the row flat (to_jsonb(row)),
+ * update stores {before, after}. Either way, pull out whatever `notes`
+ * value that row left the record with. */
+function notesFromAuditRow(row) {
+  const notes = row.action === "update" ? row.diff?.after?.notes : row.diff?.notes;
+  return typeof notes === "string" ? notes : null;
+}
+
+/** Earliest audit_log timestamp, per (table_name, record_id), where notes
+ * first became a non-empty value — paginated since a table's full history
+ * can exceed PostgREST's 1,000-row default cap. */
+async function earliestNonEmptyNotesDates(tableNames) {
+  const earliest = new Map(); // `${table_name}:${record_id}` -> ISO timestamp
+  const PAGE_SIZE = 1000;
+  let page = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("audit_log")
+      .select("table_name, record_id, action, diff, created_at")
+      .in("table_name", tableNames)
+      .in("action", ["insert", "update"])
+      .order("created_at", { ascending: true })
+      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error(`Failed to read audit_log: ${error.message}`);
+      process.exit(1);
+    }
+    for (const row of data) {
+      const notes = notesFromAuditRow(row);
+      if (!notes || !notes.trim()) continue;
+      const key = `${row.table_name}:${row.record_id}`;
+      // Rows are already fetched oldest-first, so the first match per key
+      // is the earliest — no comparison needed, just don't overwrite it.
+      if (!earliest.has(key)) earliest.set(key, row.created_at);
+    }
+    if (data.length < PAGE_SIZE) break;
+    page += 1;
+  }
+  return earliest;
+}
+
+const earliestNotesDate = await earliestNonEmptyNotesDates(SOURCE_TABLES);
 
 const rowsToInsert = [];
 const perTableCounts = {};
@@ -74,15 +119,19 @@ for (const table of SOURCE_TABLES) {
 
   perTableCounts[table] = data.length;
   for (const row of data) {
+    const auditDate = earliestNotesDate.get(`${table}:${row.id}`);
     rowsToInsert.push({
       entity_type: table,
       entity_id: row.id,
       note: row.notes.trim(),
       created_by: null,
-      created_at: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+      created_at: auditDate ?? row.updated_at ?? row.created_at ?? new Date().toISOString(),
     });
   }
 }
+
+const fromAuditLog = rowsToInsert.filter((r) => earliestNotesDate.has(`${r.entity_type}:${r.entity_id}`)).length;
+console.log(`Timestamp source: ${fromAuditLog} from audit_log, ${rowsToInsert.length - fromAuditLog} fell back to updated_at/created_at.\n`);
 
 console.log("Rows with notes to import:");
 for (const table of SOURCE_TABLES) {
