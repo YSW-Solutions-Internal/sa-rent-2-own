@@ -31,6 +31,9 @@ export const vehicleFormSchema = z.object({
   warrantyActive: z.boolean().optional(),
   warrantyNotes: z.string().optional(),
   hasContractFile: z.boolean().optional(),
+  purchasePrice: z.string().optional(),
+  potentialSalePrice: z.string().optional(),
+  salePrice: z.string().optional(),
 });
 
 export type VehicleFormValues = z.infer<typeof vehicleFormSchema>;

@@ -70,13 +70,14 @@ async function toContractRow(
     end_date: values.endDate || null,
     payment_method: values.paymentMethod,
     installment_amount: toNumber(values.installmentAmount),
-    purchase_price: toNumber(values.purchasePrice),
-    potential_sale_price: toNumber(values.potentialSalePrice),
-    sale_price: toNumber(values.salePrice),
     residual_value: toNumber(values.residualValue),
-    total_collected: toNumber(values.totalCollected) ?? 0,
-    outstanding_balance: toNumber(values.outstandingBalance) ?? 0,
-    arrears_amount: toNumber(values.arrearsAmount) ?? 0,
+    // total_collected / outstanding_balance / arrears_amount are deliberately
+    // not written here — removed from the capture form (SPEC item 5, 2026-11-09)
+    // since they're legacy-import/running-balance figures, not something to
+    // hand-edit on every save. Omitting them from the row leaves an existing
+    // contract's values untouched on update, and new contracts get the
+    // columns' own `default 0`. purchase_price / potential_sale_price /
+    // sale_price moved to vehicles entirely (SPEC item 6, 2026-11-09).
     is_paid_up: values.isPaidUp ?? false,
     notes: values.notes || null,
     deal_number: values.dealNumber || null,

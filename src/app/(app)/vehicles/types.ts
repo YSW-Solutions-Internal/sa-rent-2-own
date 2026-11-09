@@ -23,6 +23,9 @@ export interface VehicleWithRegistration {
   warranty_active: boolean;
   warranty_notes: string | null;
   has_contract_file: boolean;
+  purchase_price: number | null;
+  potential_sale_price: number | null;
+  sale_price: number | null;
   current_plate: string | null;
   current_client_name: string | null;
   current_client_blacklisted: boolean;
@@ -31,8 +34,6 @@ export interface VehicleWithRegistration {
   current_contract_end_date: string | null;
   current_installment_amount: number | null;
   current_payment_method: PaymentMethod | null;
-  current_potential_sale_price: number | null;
-  current_purchase_price: number | null;
   current_total_collected: number | null;
   current_residual_value: number | null;
   current_is_paid_up: boolean | null;

@@ -34,8 +34,6 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
     end_date: string | null;
     installment_amount: number | null;
     payment_method: PaymentMethod;
-    potential_sale_price: number | null;
-    purchase_price: number | null;
     total_collected: number;
     residual_value: number | null;
     is_paid_up: boolean;
@@ -53,7 +51,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
       supabase
         .from("vehicles")
         .select(
-          "id, file_no, make, model, year, colour, vin, engine_number, status, legacy_status_note, current_mileage, next_service_km, next_service_date, last_serviced_by, tracker_supplier, tracker_running, natis_on_file, license_disc_expiry, has_spare_key, warranty_active, warranty_notes, has_contract_file"
+          "id, file_no, make, model, year, colour, vin, engine_number, status, legacy_status_note, current_mileage, next_service_km, next_service_date, last_serviced_by, tracker_supplier, tracker_running, natis_on_file, license_disc_expiry, has_spare_key, warranty_active, warranty_notes, has_contract_file, purchase_price, potential_sale_price, sale_price"
         )
         .order("file_no"),
       supabase.from("vehicle_registrations").select("vehicle_id, plate_number").is("effective_to", null),
@@ -61,7 +59,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
         ? supabase
             .from("contracts")
             .select(
-              "vehicle_id, client_id, start_date, end_date, installment_amount, payment_method, potential_sale_price, purchase_price, total_collected, residual_value, is_paid_up"
+              "vehicle_id, client_id, start_date, end_date, installment_amount, payment_method, total_collected, residual_value, is_paid_up"
             )
             .eq("status", "active")
         : Promise.resolve({ data: [] as ActiveContractRow[] }),
@@ -91,6 +89,12 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
     const client = activeContract ? clientById.get(activeContract.client_id) : undefined;
     return {
       ...v,
+      purchase_price: canSeePrices ? v.purchase_price : null,
+      potential_sale_price: canSeePrices ? v.potential_sale_price : null,
+      // Matches the Contract version of this field before the move: not
+      // gated behind canSeePrices like the other two (pre-existing
+      // behaviour, kept as-is rather than changed as a drive-by here).
+      sale_price: v.sale_price,
       current_plate: plateByVehicle.get(v.id) ?? null,
       current_client_name: client?.full_name ?? null,
       current_client_blacklisted: client?.blacklisted ?? false,
@@ -99,8 +103,6 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
       current_contract_end_date: activeContract?.end_date ?? null,
       current_installment_amount: activeContract?.installment_amount ?? null,
       current_payment_method: activeContract?.payment_method ?? null,
-      current_potential_sale_price: canSeePrices ? (activeContract?.potential_sale_price ?? null) : null,
-      current_purchase_price: canSeePrices ? (activeContract?.purchase_price ?? null) : null,
       current_total_collected: activeContract?.total_collected ?? null,
       current_residual_value: activeContract?.residual_value ?? null,
       current_is_paid_up: activeContract?.is_paid_up ?? null,

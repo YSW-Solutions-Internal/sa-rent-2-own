@@ -108,13 +108,7 @@ function toFormValues(contract?: ContractWithDetails): ContractFormValues {
     endDate: contract.end_date ?? undefined,
     paymentMethod: contract.payment_method,
     installmentAmount: contract.installment_amount?.toString() ?? undefined,
-    purchasePrice: contract.purchase_price?.toString() ?? undefined,
-    potentialSalePrice: contract.potential_sale_price?.toString() ?? undefined,
-    salePrice: contract.sale_price?.toString() ?? undefined,
     residualValue: contract.residual_value?.toString() ?? undefined,
-    totalCollected: contract.total_collected?.toString() ?? undefined,
-    outstandingBalance: contract.outstanding_balance?.toString() ?? undefined,
-    arrearsAmount: contract.arrears_amount?.toString() ?? undefined,
     isPaidUp: contract.is_paid_up,
     notes: contract.notes ?? undefined,
     dealNumber: contract.deal_number ?? undefined,
@@ -139,13 +133,7 @@ const FIELD_SECTION: Record<string, ContractSection> = {
   billingStatus: "billing",
   paymentMethod: "financials",
   installmentAmount: "financials",
-  purchasePrice: "financials",
-  potentialSalePrice: "financials",
-  salePrice: "financials",
   residualValue: "financials",
-  totalCollected: "financials",
-  outstandingBalance: "financials",
-  arrearsAmount: "financials",
   isPaidUp: "financials",
   notes: "notes",
 };
@@ -155,7 +143,6 @@ export function ContractPanel({
   vehicles,
   clients,
   readOnly = false,
-  showPrices = true,
   open: openProp,
   onOpenChange: onOpenChangeProp,
 }: {
@@ -164,8 +151,6 @@ export function ContractPanel({
   clients: SelectableClient[];
   /** View-only (Fleet Manager): fields disabled, no Save. */
   readOnly?: boolean;
-  /** Purchase / potential sale price inputs — hidden from Fleet Managers. */
-  showPrices?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -699,88 +684,6 @@ export function ContractPanel({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Residual value (RV)</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {showPrices && (
-              <FormField
-                control={form.control}
-                name="purchasePrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Purchase price</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              )}
-              {showPrices && (
-              <FormField
-                control={form.control}
-                name="potentialSalePrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Potential sale price</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              )}
-              <FormField
-                control={form.control}
-                name="salePrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sale price (if sold)</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="totalCollected"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total collected</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="outstandingBalance"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Outstanding balance</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="arrearsAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Arrears</FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ""} />
                     </FormControl>

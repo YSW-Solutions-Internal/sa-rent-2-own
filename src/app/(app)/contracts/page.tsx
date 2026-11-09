@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
-import { canEdit, canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
+import { canEdit, canViewContracts } from "@/lib/auth/permissions";
 
 import { ContractsTable } from "./contracts-table";
 import type { ContractRow, SelectableClient, SelectableVehicle } from "./types";
@@ -29,7 +29,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
       supabase
         .from("contracts")
         .select(
-          "id, vehicle_id, client_id, contract_type, status, start_date, end_date, payment_method, installment_amount, purchase_price, potential_sale_price, sale_price, residual_value, total_collected, outstanding_balance, arrears_amount, is_paid_up, notes, deal_number, statement_tag, billing_day, billing_direction, billing_frequency, billing_status"
+          "id, vehicle_id, client_id, contract_type, status, start_date, end_date, payment_method, installment_amount, residual_value, total_collected, outstanding_balance, arrears_amount, is_paid_up, notes, deal_number, statement_tag, billing_day, billing_direction, billing_frequency, billing_status"
         )
         .order("start_date", { ascending: false }),
       supabase.from("vehicles").select("id, file_no, make, model, year, status, next_service_date"),
@@ -69,16 +69,10 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
     blacklisted: c.blacklisted,
   }));
 
-  // Fleet Managers must not see prices — null them here, server-side, so
-  // the values are never sent to their browser.
-  const showPrices = canSeeFinancials(profile.role);
-
   const rows: ContractRow[] = (contracts ?? []).map((c) => {
     const vehicle = c.vehicle_id ? vehicleById.get(c.vehicle_id) : undefined;
     return {
       ...c,
-      purchase_price: showPrices ? c.purchase_price : null,
-      potential_sale_price: showPrices ? c.potential_sale_price : null,
       vehicleLabel: vehicle ? vehicleLabel(vehicle) : c.vehicle_id ? "Unknown vehicle" : "No vehicle",
       clientName: clientById.get(c.client_id) ?? "Unknown client",
       clientBlacklisted: blacklistedClientIds.has(c.client_id),

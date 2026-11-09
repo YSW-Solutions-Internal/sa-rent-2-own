@@ -669,9 +669,9 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
     case "paymentMethod":
       return vehicle.current_payment_method ? PAYMENT_METHOD_LABELS[vehicle.current_payment_method] : "—";
     case "potentialSalePrice":
-      return formatMoney(vehicle.current_potential_sale_price);
+      return formatMoney(vehicle.potential_sale_price);
     case "purchasePrice":
-      return formatMoney(vehicle.current_purchase_price);
+      return formatMoney(vehicle.purchase_price);
     case "purchaseDate":
       return formatDisplayDate(vehicle.current_contract_start_date);
     case "totalCollected":
@@ -744,9 +744,9 @@ function exportValue(column: ColumnId, vehicle: VehicleWithRegistration): string
     case "paymentMethod":
       return vehicle.current_payment_method ? PAYMENT_METHOD_LABELS[vehicle.current_payment_method] : "";
     case "potentialSalePrice":
-      return vehicle.current_potential_sale_price ?? "";
+      return vehicle.potential_sale_price ?? "";
     case "purchasePrice":
-      return vehicle.current_purchase_price ?? "";
+      return vehicle.purchase_price ?? "";
     case "purchaseDate":
       return vehicle.current_contract_start_date ?? "";
     case "totalCollected":
@@ -1042,8 +1042,8 @@ export function VehiclesTable({
     installment: (a, b) => compareNumbers(a.current_installment_amount, b.current_installment_amount),
     paymentMethod: (a, b) => compareStrings(a.current_payment_method, b.current_payment_method),
     potentialSalePrice: (a, b) =>
-      compareNumbers(a.current_potential_sale_price, b.current_potential_sale_price),
-    purchasePrice: (a, b) => compareNumbers(a.current_purchase_price, b.current_purchase_price),
+      compareNumbers(a.potential_sale_price, b.potential_sale_price),
+    purchasePrice: (a, b) => compareNumbers(a.purchase_price, b.purchase_price),
     purchaseDate: (a, b) =>
       compareNumbers(
         a.current_contract_start_date ? Date.parse(a.current_contract_start_date) : null,
@@ -1174,7 +1174,7 @@ export function VehiclesTable({
       ]),
       exportedBy,
       columns,
-      rows: filteredRows,
+      rows: selectedRows.length > 0 ? selectedRows : filteredRows,
     });
   }
 
@@ -1212,7 +1212,7 @@ export function VehiclesTable({
               ))}
             </>
           )}
-          {canManage && <VehiclePanel />}
+          {canManage && <VehiclePanel showPrices={canSeePrices} />}
         </div>
       </div>
 
@@ -1361,6 +1361,7 @@ export function VehiclesTable({
           key={`${panel.vehicleId}:${panel.openCount}`}
           vehicle={panelVehicle}
           canManage={canManage}
+          showPrices={canSeePrices}
           open={panel.open}
           onOpenChange={(next) => {
             setPanel((prev) => (prev ? { ...prev, open: next } : prev));

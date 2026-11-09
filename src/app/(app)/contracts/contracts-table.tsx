@@ -209,7 +209,7 @@ export function ContractsTable({
       ]),
       exportedBy,
       columns,
-      rows: filteredRows,
+      rows: selectedRows.length > 0 ? selectedRows : filteredRows,
     });
   }
 
@@ -382,7 +382,6 @@ export function ContractsTable({
           vehicles={vehicles}
           clients={clients}
           readOnly={!canEdit}
-          showPrices={canEdit}
           open={panel.open}
           onOpenChange={(next) => {
             setPanel((prev) => (prev ? { ...prev, open: next } : prev));
