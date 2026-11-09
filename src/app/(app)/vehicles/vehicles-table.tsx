@@ -16,7 +16,7 @@ import {
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { ChevronDown, Download, Pencil } from "lucide-react";
+import { ChevronDown, Download, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +59,7 @@ import { InlineEditCell } from "./inline-edit-cell";
 import { DeleteVehicleButton } from "./delete-vehicle-button";
 import { VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
 import { VehiclePanel } from "./vehicle-panel";
+import { AddCostDialog } from "./add-cost-dialog";
 import type { VehicleWithRegistration } from "./types";
 
 const TRACKER_LABELS: Record<TrackerStatus, string> = {
@@ -770,6 +771,7 @@ const VehicleRow = memo(function VehicleRow({
   isSelected,
   onToggleSelected,
   onEdit,
+  onAddCost,
 }: {
   vehicle: VehicleWithRegistration;
   index: number;
@@ -778,6 +780,7 @@ const VehicleRow = memo(function VehicleRow({
   isSelected: boolean;
   onToggleSelected: (id: string) => void;
   onEdit: (id: string) => void;
+  onAddCost: (id: string) => void;
 }) {
   const columns = useMemo(() => columnsKey.split("|") as ColumnId[], [columnsKey]);
 
@@ -799,8 +802,19 @@ const VehicleRow = memo(function VehicleRow({
         </TableCell>
       ))}
       {canManage && (
-        <TableCell className="sticky right-0 z-10 w-24 border-l bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
+        <TableCell className="sticky right-0 z-10 w-28 border-l bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
           <div className="flex items-center justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              aria-label="Add cost"
+              title="Add cost"
+              onClick={() => onAddCost(vehicle.id)}
+            >
+              <Plus className="size-3" />
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -876,6 +890,8 @@ export function VehiclesTable({
     url.searchParams.delete("open");
     window.history.replaceState(null, "", url);
   }, [initialOpenVehicleId]);
+  const [costVehicleId, setCostVehicleId] = useState<string | null>(null);
+  const costVehicle = costVehicleId ? rows.find((v) => v.id === costVehicleId) : undefined;
   const openPanel = useCallback(
     (vehicleId: string) => setPanel((prev) => ({ vehicleId, open: true, openCount: (prev?.openCount ?? 0) + 1 })),
     []
@@ -1294,7 +1310,7 @@ export function VehiclesTable({
                     />
                   ))}
                 </SortableContext>
-                {canManage && <TableHead className="sticky right-0 z-20 w-24 border-l bg-muted" />}
+                {canManage && <TableHead className="sticky right-0 z-20 w-28 border-l bg-muted" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1308,6 +1324,7 @@ export function VehiclesTable({
                   isSelected={selectedIds.has(vehicle.id)}
                   onToggleSelected={toggleRowSelected}
                   onEdit={openPanel}
+                  onAddCost={setCostVehicleId}
                 />
               ))}
               {filteredRows.length === 0 && (
@@ -1324,6 +1341,16 @@ export function VehiclesTable({
           </Table>
         </DndContext>
       </div>
+
+      {canManage && (
+        <AddCostDialog
+          vehicleId={costVehicleId}
+          vehicleLabel={costVehicle ? [costVehicle.file_no, costVehicle.current_plate].filter(Boolean).join(" · ") : ""}
+          onOpenChange={(next) => {
+            if (!next) setCostVehicleId(null);
+          }}
+        />
+      )}
 
       {canManage && panel && panelVehicle && (
         <VehiclePanel

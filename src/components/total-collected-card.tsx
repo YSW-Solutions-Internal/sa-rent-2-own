@@ -36,7 +36,7 @@ export function TotalCollectedCard({ id, load }: { id: string; load: (id: string
         {total === undefined ? (
           <Skeleton className="mt-1 h-7 w-32" />
         ) : (
-          <span className="text-2xl font-semibold tracking-tight tabular-nums">{rand.format(total)}</span>
+          <span className="text-2xl font-semibold tracking-tight text-[var(--brand-blue-dark)] tabular-nums dark:text-[var(--brand-blue)]">{rand.format(total)}</span>
         )}
       </div>
     </div>
