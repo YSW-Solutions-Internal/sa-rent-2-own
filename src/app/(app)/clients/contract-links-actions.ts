@@ -1,5 +1,7 @@
 "use server";
 
+import { getCurrentProfile } from "@/lib/auth/current-profile";
+import { canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ContractStatus } from "@/lib/database.types";
 
@@ -48,4 +50,32 @@ export async function listClientContracts(
   }));
 
   return { data: rows };
+}
+
+/**
+ * Net cash collected from a client across all their contracts, to date.
+ * Admin / Fleet Manager only; Fleet Managers don't see cash contracts.
+ * Returns `data: null` when the caller isn't allowed to see it.
+ */
+export async function getClientTotalCollected(
+  clientId: string
+): Promise<{ data?: number | null; error?: string }> {
+  const profile = await getCurrentProfile();
+  if (!profile || !canViewContracts(profile.role)) return { data: null };
+
+  const supabase = await createSupabaseServerClient();
+  let contractQuery = supabase.from("contracts").select("id").eq("client_id", clientId);
+  if (!canSeeFinancials(profile.role)) contractQuery = contractQuery.neq("payment_method", "cash");
+  const { data: contracts, error } = await contractQuery;
+  if (error) return { error: "Couldn't load total collected" };
+
+  const contractIds = (contracts ?? []).map((c) => c.id);
+  if (contractIds.length === 0) return { data: 0 };
+
+  const { data: rows, error: sumError } = await supabase
+    .from("payment_contract_summary")
+    .select("net_collected")
+    .in("contract_id", contractIds);
+  if (sumError) return { error: "Couldn't load total collected" };
+  return { data: (rows ?? []).reduce((sum, r) => sum + Number(r.net_collected), 0) };
 }

@@ -44,6 +44,8 @@ import { createClient, revealBankingDetails, updateClient } from "./actions";
 import { bankAccountTypeValues, clientFormSchema, type ClientFormValues } from "./schema";
 import type { ClientWithBanking } from "./types";
 import { ClientContractsSection } from "./client-contracts-section";
+import { getClientTotalCollected } from "./contract-links-actions";
+import { TotalCollectedCard } from "@/components/total-collected-card";
 
 const ACCOUNT_TYPE_LABELS: Record<(typeof bankAccountTypeValues)[number], string> = {
   cheque: "Cheque / current",
@@ -206,6 +208,7 @@ export function ClientPanel({
               <PanelModalBody>
             <fieldset disabled={readOnly} className="contents">
             <PanelModalFormTab value="client">
+            {isEditing && <TotalCollectedCard id={client!.id} load={getClientTotalCollected} />}
             <section className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
