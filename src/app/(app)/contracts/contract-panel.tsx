@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus } from "lucide-react";
+import { BadgeDollarSign, CircleDollarSign, FileText, Plus, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -290,10 +290,10 @@ export function ContractPanel({
         />
         <PanelModalSections
           sections={[
-            { id: "deal", label: "Deal" },
-            { id: "billing", label: "Billing" },
-            { id: "financials", label: "Financials" },
-            { id: "notes", label: "Notes" },
+            { id: "deal", label: "Deal", icon: FileText },
+            { id: "billing", label: "Billing", icon: CircleDollarSign },
+            { id: "financials", label: "Financials", icon: BadgeDollarSign },
+            { id: "notes", label: "Notes", icon: StickyNote },
           ]}
         >
           <Form {...form}>

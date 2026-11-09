@@ -1,5 +1,6 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -56,13 +57,15 @@ export function scrollToPanelSection(id: string) {
 
 export interface PanelModalSectionInfo {
   id: string;
+  /** Shown as the icon's tooltip / accessible name. */
   label: string;
+  icon: LucideIcon;
 }
 
 /**
- * The modal's body: a left rail listing `sections` next to one scrolling page.
- * The rail highlights the section currently in view (with a sliding marker) and
- * clicking an entry scrolls to it. Children are <PanelModalSection>s (they may
+ * The modal's body: a left rail of section icons next to one scrolling page.
+ * The rail highlights the section currently in view (blue icon, sliding marker)
+ * and clicking an icon scrolls to it. Children are <PanelModalSection>s (they may
  * sit inside forms/fieldsets); every section stays mounted, so all fields are
  * always registered and validated.
  */
@@ -134,15 +137,15 @@ export function PanelModalSections({
     <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
       <nav
         aria-label="Sections"
-        className="relative flex shrink-0 gap-1 overflow-x-auto border-b px-4 py-2 sm:w-52 sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:px-3 sm:py-4"
+        className="relative flex shrink-0 gap-1 overflow-x-auto border-b px-4 py-2 sm:w-16 sm:flex-col sm:items-center sm:overflow-visible sm:border-r sm:border-b-0 sm:px-2 sm:py-4"
       >
         {marker && (
           <span
             aria-hidden
-            className="bg-muted pointer-events-none absolute right-3 left-3 hidden rounded-md transition-[top,height] duration-300 ease-out motion-reduce:transition-none sm:block"
+            className="bg-muted pointer-events-none absolute inset-x-2 hidden rounded-md transition-[top,height] duration-300 ease-out motion-reduce:transition-none sm:block"
             style={{ top: marker.top, height: marker.height }}
           >
-            <span className="bg-primary absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full" />
+            <span className="absolute top-2 bottom-2 left-0 w-0.5 rounded-full bg-[var(--brand-blue-dark)] dark:bg-[var(--brand-blue)]" />
           </span>
         )}
         {sections.map((s) => {
@@ -156,15 +159,17 @@ export function PanelModalSections({
                 else itemRefs.current.delete(s.id);
               }}
               aria-current={active ? "true" : undefined}
+              aria-label={s.label}
+              title={s.label}
               onClick={() => go(s.id)}
               className={cn(
-                "relative rounded-md px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors duration-200 motion-reduce:transition-none max-sm:shrink-0",
+                "relative flex size-10 items-center justify-center rounded-md transition-colors duration-200 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 motion-reduce:transition-none max-sm:shrink-0",
                 active
-                  ? "text-foreground font-medium max-sm:bg-muted"
+                  ? "text-[var(--brand-blue-dark)] max-sm:bg-muted dark:text-[var(--brand-blue)]"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {s.label}
+              <s.icon className="size-5" />
             </button>
           );
         })}
