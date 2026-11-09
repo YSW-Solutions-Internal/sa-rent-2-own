@@ -84,8 +84,8 @@ export async function getVehicleTotalCollected(
   if (contractIds.length === 0) return { data: 0 };
 
   let query = supabase
-    .from("payment_contract_summary")
-    .select("net_collected")
+    .from("payment_transactions")
+    .select("cash_effect")
     .in("contract_id", contractIds);
   if (!canSeeFinancials(profile.role)) {
     const { data: cash } = await supabase
@@ -99,5 +99,5 @@ export async function getVehicleTotalCollected(
 
   const { data: rows, error: sumError } = await query;
   if (sumError) return { error: "Couldn't load total collected" };
-  return { data: (rows ?? []).reduce((sum, r) => sum + Number(r.net_collected), 0) };
+  return { data: (rows ?? []).reduce((sum, r) => sum + Number(r.cash_effect), 0) };
 }
