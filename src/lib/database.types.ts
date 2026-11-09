@@ -291,6 +291,28 @@ export interface Database {
         >;
         Relationships: [];
       };
+      record_notes: {
+        Row: {
+          id: string;
+          entity_type: string;
+          entity_id: string;
+          note: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entity_type: string;
+          entity_id: string;
+          note: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["record_notes"]["Insert"]
+        >;
+        Relationships: [];
+      };
       contracts: {
         Row: {
           id: string;
