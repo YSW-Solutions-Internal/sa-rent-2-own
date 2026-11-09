@@ -1,7 +1,7 @@
 import "server-only";
 
 import { canEdit } from "@/lib/auth/permissions";
-import type { UserRole } from "@/lib/database.types";
+import type { Database, UserRole } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { parseServiceMessage } from "./service-parse";
@@ -236,30 +236,99 @@ const describeFilled = (d: FlowData) =>
     .filter(Boolean)
     .join("\n");
 
-// ---------- flow state ----------
+const introFor = (reg?: string) =>
+  reg ? `Let's deal with ${reg}. Reply "cancel" at any time to stop.` : `Let's add a service. Reply "cancel" at any time to stop.`;
 
-async function loadFlow(phone: string): Promise<{ step: Step; data: FlowData } | null> {
-  const db = createAdminClient();
-  const { data } = await db.from("whatsapp_flows").select("flow, step, data, updated_at").eq("phone", phone).maybeSingle();
-  if (!data || data.flow !== FLOW) return null;
-  if (Date.now() - new Date(data.updated_at).getTime() > FLOW_TTL_MINUTES * 60_000) {
-    await clearFlow(phone);
-    return null;
-  }
-  return { step: data.step as Step, data: data.data as FlowData };
+const queueAck = (reg?: string) => (reg ? `Got it — I'll come back to ${reg} once we're done here.` : `Got it — I'll come back to that once we're done here.`);
+
+/** Greeting + whatever was pre-filled + the next question, for a flow that's now active (fresh or promoted from the queue). */
+function presentFlow(data: FlowData, step: Step, notes: string[] = []): string {
+  const got = describeFilled(data);
+  return [got ? `${introFor(data.reg)}\n\nFrom your message:\n${got}` : introFor(data.reg), ...notes, step === "confirm" ? "" : QUESTIONS[step]]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
-async function saveFlow(phone: string, step: Step, data: FlowData) {
+// ---------- flow state ----------
+//
+// Several vehicles can be mid-flow for the same phone at once (e.g. two "add
+// a service" messages sent back to back) — each gets its own row, with at
+// most one "active" per phone, enforced by a DB-level partial unique index
+// (whatsapp_flow_claim) so two concurrent messages can't both become active
+// and clobber each other. See 20261109140000_whatsapp_flows_queue.sql.
+
+interface ActiveFlow {
+  id: string;
+  step: Step;
+  data: FlowData;
+  /** This flow was just promoted from the queue because the previous active one timed out. */
+  justPromoted?: boolean;
+}
+
+// A non-SETOF function called via PostgREST always comes back as exactly one
+// row, even on a SQL NULL return -- which expands to one row of null fields,
+// not a JS null. "No row" is always detected by id being null, never by the
+// row object itself being falsy.
+function rowToFlow(
+  row: Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null | undefined
+): { id: string; step: Step; data: FlowData } | null {
+  if (!row?.id) return null;
+  return { id: row.id, step: row.step as Step, data: row.data as FlowData };
+}
+
+async function loadActiveFlow(phone: string): Promise<ActiveFlow | null> {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("whatsapp_flows")
+    .select("id, flow, step, data, updated_at")
+    .eq("phone", phone)
+    .eq("active", true)
+    .maybeSingle();
+  if (!data || data.flow !== FLOW) return null;
+  if (Date.now() - new Date(data.updated_at).getTime() <= FLOW_TTL_MINUTES * 60_000) {
+    return { id: data.id, step: data.step as Step, data: data.data as FlowData };
+  }
+  const promoted = rowToFlow(await closeAndPromote(data.id));
+  return promoted ? { ...promoted, justPromoted: true } : null;
+}
+
+async function saveFlow(id: string, step: Step, data: FlowData) {
   const db = createAdminClient();
   const { error } = await db
     .from("whatsapp_flows")
-    .upsert({ phone, flow: FLOW, step, data: data as never, updated_at: new Date().toISOString() });
+    .update({ step, data: data as never, updated_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw error;
 }
 
-async function clearFlow(phone: string) {
+/** Tries to become the active flow for this phone; null if another one already is (caller should queue instead). */
+async function claimFlow(phone: string, step: Step, data: FlowData) {
   const db = createAdminClient();
-  await db.from("whatsapp_flows").delete().eq("phone", phone);
+  const { data: row, error } = await db
+    .rpc("whatsapp_flow_claim", { p_phone: phone, p_flow: FLOW, p_step: step, p_data: data as never })
+    .single();
+  if (error) throw error;
+  return rowToFlow(row as Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null);
+}
+
+async function enqueueFlow(phone: string, step: Step, data: FlowData) {
+  const db = createAdminClient();
+  const { error } = await db.rpc("whatsapp_flow_enqueue", { p_phone: phone, p_flow: FLOW, p_step: step, p_data: data as never });
+  if (error) throw error;
+}
+
+/** Closes (deletes) a flow and, if another vehicle is queued behind it, promotes it to active. */
+async function closeAndPromote(id: string) {
+  const db = createAdminClient();
+  const { data: row, error } = await db.rpc("whatsapp_flow_close_and_promote", { p_id: id }).single();
+  if (error) throw error;
+  return row as Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null;
+}
+
+/** Closing message, plus the next queued vehicle's opening if one was waiting. */
+async function closeWithPromotion(id: string, message: string): Promise<string> {
+  const promoted = rowToFlow(await closeAndPromote(id));
+  return promoted ? `${message}\n\n${presentFlow(promoted.data, promoted.step)}` : message;
 }
 
 // ---------- DB ----------
@@ -357,7 +426,7 @@ export async function handleServiceFlow(
   try {
     const reply = await runServiceFlow(phone, text, user, media);
     if (reply === null) return null;
-    const flow = await loadFlow(phone);
+    const flow = await loadActiveFlow(phone);
     return { text: reply, skipButton: flow?.step === "work" || flow?.step === "invoice" };
   } catch (err) {
     console.error("whatsapp add-service flow failed", err);
@@ -367,13 +436,31 @@ export async function handleServiceFlow(
   }
 }
 
+/** Parses a message that looks like it's starting a service flow; null if it isn't one, after all. */
+async function startVehicleFlow(text: string, explicit: boolean): Promise<{ step: Step; data: FlowData; notes: string[] } | null> {
+  // A long message may already contain the details: pull them out, then only ask for what's missing.
+  const prefill = (explicit ? text.replace(START_RE, "").trim().length >= 8 : true) ? await prefillFromMessage(text) : null;
+  // Without the "add a service" wording, only take over if the message really carries several service fields.
+  if (!explicit && (!prefill || Object.keys(prefill.data).length < 2)) return null;
+  if (!prefill) return { step: "reg", data: { serviceDate: todayZA() }, notes: [] };
+  // The service date defaults to the day the message is sent unless the message names one.
+  const { data: filled, dropped } = sanitise({ serviceDate: todayZA(), ...prefill.data });
+  const notes = [...prefill.notes];
+  if (dropped.length) notes.push(`I couldn't use the ${dropped.join(", ")} from your message.`);
+  return { step: nextStep(filled), data: filled, notes };
+}
+
 async function runServiceFlow(
   phone: string,
   text: string,
   user: FlowUser,
   media: { url: string; contentType: string } | null
 ): Promise<string | null> {
-  const flow = await loadFlow(phone);
+  const flow = await loadActiveFlow(phone);
+
+  if (flow?.justPromoted) {
+    return `That request timed out, so nothing was saved for it.\n\n${presentFlow(flow.data, flow.step)}`;
+  }
 
   if (!flow) {
     const explicit = START_RE.test(text);
@@ -381,37 +468,39 @@ async function runServiceFlow(
     if (!canEdit(user.role)) {
       return explicit ? "Only admins can add a service. Ask an admin, or add it in the web app." : null;
     }
-    const intro = `Let's add a service. Reply "cancel" at any time to stop.`;
-    // A long message may already contain the details: pull them out, then only ask for what's missing.
-    const prefill = (explicit ? text.replace(START_RE, "").trim().length >= 8 : true) ? await prefillFromMessage(text) : null;
-    // Without the "add a service" wording, only take over if the message really carries several service fields.
-    if (!explicit && (!prefill || Object.keys(prefill.data).length < 2)) return null;
-    if (!prefill) {
-      await saveFlow(phone, "reg", { serviceDate: todayZA() });
-      return `${intro}\n\n${QUESTIONS.reg}`;
-    }
-    // The service date defaults to the day the message is sent unless the message names one.
-    const { data: filled, dropped } = sanitise({ serviceDate: todayZA(), ...prefill.data });
-    if (dropped.length) prefill.notes.push(`I couldn't use the ${dropped.join(", ")} from your message.`);
-    const step = nextStep(filled);
-    await saveFlow(phone, step, filled);
-    const got = describeFilled(filled);
-    return [
-      got ? `${intro}\n\nFrom your message:\n${got}` : intro,
-      ...prefill.notes,
-      `${QUESTIONS[step as Exclude<Step, "confirm">]}`,
-    ].join("\n\n");
+    const started = await startVehicleFlow(text, explicit);
+    if (!started) return null;
+    const claimed = await claimFlow(phone, started.step, started.data);
+    if (claimed) return presentFlow(started.data, started.step, started.notes);
+    // Lost the claim to another message for this phone that landed at the same instant: queue instead of clobbering it.
+    await enqueueFlow(phone, started.step, started.data);
+    return queueAck(started.data.reg);
   }
 
   // Flow state is only trusted for someone who may still use it.
   if (!canEdit(user.role)) {
-    await clearFlow(phone);
+    await closeAndPromote(flow.id);
     return null;
   }
   if (CANCEL_RE.test(text)) {
     await discardInvoice(flow.data.invoicePath);
-    await clearFlow(phone);
-    return "Cancelled — nothing was saved.";
+    return closeWithPromotion(flow.id, "Cancelled — nothing was saved.");
+  }
+
+  // A second vehicle, described while this one is still in progress: queue it
+  // rather than letting it clobber or get misread as the answer to this
+  // question (see the JF13MRGP/JF53YJGP incident this replaces). The implicit
+  // (no "add a service" wording) case only counts once this flow already has
+  // its own registration to compare against -- otherwise a message that's
+  // just a wordy answer to "what's the registration?" would get mistaken for
+  // a different vehicle instead of answered.
+  const explicitNew = START_RE.test(text);
+  if (explicitNew || (flow.data.reg && looksLikeServiceDetails(text))) {
+    const started = await startVehicleFlow(text, explicitNew);
+    if (started && (explicitNew || started.data.reg !== flow.data.reg)) {
+      await enqueueFlow(phone, started.step, started.data);
+      return `${queueAck(started.data.reg)}\n\n${flow.step === "confirm" ? "" : QUESTIONS[flow.step]}`.trim();
+    }
   }
 
   const { step, data } = flow;
@@ -419,7 +508,7 @@ async function runServiceFlow(
     // Skips anything already pre-filled from a free-text message, re-checking it against the answer just given.
     const { data: kept, dropped } = sanitise(d);
     const next = nextStep(kept);
-    await saveFlow(phone, next, kept);
+    await saveFlow(flow.id, next, kept);
     const note = dropped.length ? `(I couldn't use the ${dropped.join(", ")} you sent earlier.)\n` : "";
     return `${prefix}${note}${next === "confirm" ? "" : QUESTIONS[next]}`;
   };
@@ -485,24 +574,22 @@ async function runServiceFlow(
         return retry("Send a photo or PDF of the invoice, or reply No to skip.");
       }
       const full = { ...data, invoicePath };
-      await saveFlow(phone, "confirm", full);
+      await saveFlow(flow.id, "confirm", full);
       return `Please check:\n${summary(full as Required<FlowData>)}\n\nSave this service? Reply YES to save or NO to cancel.`;
     }
     case "confirm": {
       if (NO_RE.test(text)) {
         await discardInvoice(data.invoicePath);
-        await clearFlow(phone);
-        return "Cancelled — nothing was saved.";
+        return closeWithPromotion(flow.id, "Cancelled — nothing was saved.");
       }
       if (!YES_RE.test(text)) return "Reply YES to save this service, or NO to cancel.";
       const ok = await saveService(user, data as Required<FlowData>);
       if (!ok) return "Sorry, I couldn't save that. Please check the vehicle in the web app, then try again if needed.";
-      await clearFlow(phone);
-      return `Saved. Service recorded for ${data.reg} and the vehicle's mileage and next service details are updated.`;
+      return closeWithPromotion(flow.id, `Saved. Service recorded for ${data.reg} and the vehicle's mileage and next service details are updated.`);
     }
     default:
       // Saved by an older version of the script (a step that no longer exists): drop it and start over.
-      await clearFlow(phone);
+      await closeAndPromote(flow.id);
       return runServiceFlow(phone, text, user, media);
   }
 }
