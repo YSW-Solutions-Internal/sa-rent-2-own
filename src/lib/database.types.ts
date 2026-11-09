@@ -591,17 +591,23 @@ export interface Database {
       };
       whatsapp_flows: {
         Row: {
+          id: string;
           phone: string;
           flow: string;
           step: string;
           data: Json;
+          active: boolean;
+          created_at: string;
           updated_at: string;
         };
         Insert: {
+          id?: string;
           phone: string;
           flow: string;
           step: string;
           data?: Json;
+          active?: boolean;
+          created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["whatsapp_flows"]["Insert"]>;
@@ -685,6 +691,18 @@ export interface Database {
           p_next_date: string;
         };
         Returns: undefined;
+      };
+      whatsapp_flow_claim: {
+        Args: { p_phone: string; p_flow: string; p_step: string; p_data: Json };
+        Returns: Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null;
+      };
+      whatsapp_flow_enqueue: {
+        Args: { p_phone: string; p_flow: string; p_step: string; p_data: Json };
+        Returns: Database["public"]["Tables"]["whatsapp_flows"]["Row"];
+      };
+      whatsapp_flow_close_and_promote: {
+        Args: { p_id: string };
+        Returns: Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null;
       };
       current_user_role: {
         Args: Record<string, never>;
