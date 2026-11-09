@@ -38,3 +38,11 @@ export function canViewContracts(role: UserRole | undefined): boolean {
 export function canSeeFinancials(role: UserRole | undefined): boolean {
   return role === "admin";
 }
+
+/** Export to Excel, on every list view (Vehicles, Clients, Contracts,
+ * Payments' Report and Transactions tabs). Fleet Managers are read-only
+ * everywhere else in the app; exporting a spreadsheet is a way to take
+ * data out of it, so it's withheld the same way edit rights are. */
+export function canExport(role: UserRole | undefined): boolean {
+  return role === "admin";
+}

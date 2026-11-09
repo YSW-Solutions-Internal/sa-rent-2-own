@@ -85,6 +85,7 @@ export function PaymentsViewSwitcher({
           exportedBy={exportedBy}
           showCash={showFinancials}
           showOutstanding={showFinancials}
+          canExport={showFinancials}
         />
       </TabsContent>
 
@@ -115,6 +116,7 @@ export function PaymentsViewSwitcher({
           total={transactionsTotal}
           filters={transactionsFilters}
           exportedBy={exportedBy}
+          canExport={showFinancials}
         />
       </TabsContent>
     </Tabs>

@@ -77,6 +77,7 @@ export function MonthlyReportTable({
   exportedBy,
   showCash,
   showOutstanding,
+  canExport,
 }: {
   rows: ContractMonthlyReportRow[];
   monthLabels: string[];
@@ -85,6 +86,8 @@ export function MonthlyReportTable({
   showCash: boolean;
   /** "Total outstanding" column + footer total — admin only (never populated for Fleet Managers). */
   showOutstanding: boolean;
+  /** Export to Excel — admin only; Fleet Managers are read-only everywhere else. */
+  canExport: boolean;
 }) {
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<"all" | PaymentMethod>("all");
   const [missedOnly, setMissedOnly] = useState(false);
@@ -254,10 +257,12 @@ export function MonthlyReportTable({
           Only accounts with a missed payment
         </label>
         <div className="ml-auto flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={handleExport}>
-            <Download />
-            Export
-          </Button>
+          {canExport && (
+            <Button type="button" variant="outline" size="sm" onClick={handleExport}>
+              <Download />
+              Export
+            </Button>
+          )}
           <SelectionActions
             selectedCount={selectedRows.length}
             onCopyAsImage={handleCopyAsImage}
