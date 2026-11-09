@@ -10,15 +10,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
-  PanelModalBody,
   PanelModalContent,
   PanelModalFooter,
-  PanelModalFormTab,
   PanelModalHeader,
-  PanelModalTab,
-  PanelModalTabsList,
+  PanelModalSection,
+  PanelModalSections,
+  scrollToPanelSection,
 } from "@/components/ui/panel-modal";
-import { Tabs, TabsTrigger } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -112,9 +110,7 @@ function RevealedBanking({ clientId }: { clientId: string }) {
   );
 }
 
-type ClientTab = "client" | "banking" | "contracts";
-
-/** Fields on the Banking Details tab (anything else is on Client). */
+/** Fields in the Banking Details section (anything else is in Client). */
 const BANKING_FIELDS = new Set(["bankName", "accountType", "branchCode", "accountHolderName", "accountNumber"]);
 
 export function ClientPanel({
@@ -141,11 +137,10 @@ export function ClientPanel({
     defaultValues: toFormValues(client),
   });
 
-  const [tab, setTab] = useState<ClientTab>("client");
-  // A save blocked by validation jumps to the tab holding the first bad field.
+  // A save blocked by validation scrolls to the section holding the first bad field.
   function onInvalid(errors: FieldErrors<ClientFormValues>) {
     const first = Object.keys(errors)[0];
-    setTab(BANKING_FIELDS.has(first) ? "banking" : "client");
+    scrollToPanelSection(BANKING_FIELDS.has(first) ? "banking" : "client");
   }
 
   const blacklisted = useWatch({ control: form.control, name: "blacklisted" });
@@ -175,7 +170,6 @@ export function ClientPanel({
         setOpen(next);
         if (next) {
           form.reset(toFormValues(client));
-          setTab("client");
         }
       }}
     >
@@ -199,15 +193,15 @@ export function ClientPanel({
         />
         <Form {...form}>
           <form id="client-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as ClientTab)} className="flex min-h-0 flex-1 flex-col gap-0">
-              <PanelModalTabsList>
-                <TabsTrigger value="client">Client</TabsTrigger>
-                <TabsTrigger value="banking">Banking Details</TabsTrigger>
-                {isEditing && <TabsTrigger value="contracts">Contracts</TabsTrigger>}
-              </PanelModalTabsList>
-              <PanelModalBody>
+            <PanelModalSections
+              sections={[
+                { id: "client", label: "Client" },
+                { id: "banking", label: "Banking Details" },
+                ...(isEditing ? [{ id: "contracts", label: "Contracts" }] : []),
+              ]}
+            >
             <fieldset disabled={readOnly} className="contents">
-            <PanelModalFormTab value="client">
+            <PanelModalSection id="client" title="Client">
             {isEditing && <TotalCollectedCard id={client!.id} load={getClientTotalCollected} />}
             <section className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -337,9 +331,9 @@ export function ClientPanel({
                 />
               )}
             </section>
-            </PanelModalFormTab>
+            </PanelModalSection>
 
-            <PanelModalFormTab value="banking">
+            <PanelModalSection id="banking" title="Banking Details">
             <section className="grid gap-4 sm:grid-cols-2">
               <div className="col-span-full flex items-center justify-between">
                 <span />
@@ -437,19 +431,18 @@ export function ClientPanel({
               )}
             </section>
 
-            </PanelModalFormTab>
+            </PanelModalSection>
 
             {isEditing && (
-              <PanelModalTab value="contracts">
+              <PanelModalSection id="contracts" title="Contracts">
                 <ClientContractsSection clientId={client!.id} />
-              </PanelModalTab>
+              </PanelModalSection>
             )}
             </fieldset>
-              </PanelModalBody>
-            </Tabs>
+            </PanelModalSections>
           </form>
         </Form>
-        {!readOnly && tab !== "contracts" && (
+        {!readOnly && (
           <PanelModalFooter>
             <Button type="submit" form="client-form" disabled={isPending}>
               {isPending ? "Saving…" : "Save"}
