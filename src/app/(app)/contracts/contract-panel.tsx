@@ -12,14 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
-  PanelModalBody,
   PanelModalContent,
   PanelModalFooter,
-  PanelModalFormTab,
+  PanelModalSection,
+  PanelModalSections,
+  scrollToPanelSection,
   PanelModalHeader,
-  PanelModalTabsList,
 } from "@/components/ui/panel-modal";
-import { Tabs, TabsTrigger } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -128,10 +127,10 @@ function toFormValues(contract?: ContractWithDetails): ContractFormValues {
   };
 }
 
-type ContractTab = "deal" | "billing" | "financials" | "notes";
+type ContractSection = "deal" | "billing" | "financials" | "notes";
 
-/** Which tab each field lives on (anything not listed is on Deal). */
-const FIELD_TAB: Record<string, ContractTab> = {
+/** Which section each field lives in (anything not listed is in Deal). */
+const FIELD_SECTION: Record<string, ContractSection> = {
   dealNumber: "billing",
   statementTag: "billing",
   billingDay: "billing",
@@ -187,7 +186,6 @@ export function ContractPanel({
     defaultValues: toFormValues(contract),
   });
 
-  const [tab, setTab] = useState<ContractTab>("deal");
   // Existing contract: the vehicle shows as plain text until "Change vehicle" (pick another),
   // "Add vehicle" (contract has none) or "Remove vehicle" (leave it with none) is pressed.
   const originalVehicleId = contract?.vehicle_id ?? "";
@@ -210,16 +208,16 @@ export function ContractPanel({
     setVehicleMode("remove");
     form.setValue("vehicleId", "", { shouldDirty: true });
   }
-  // A save blocked by validation jumps to the tab holding the first bad field.
+  // A save blocked by validation scrolls to the section holding the first bad field.
   function onInvalid(errors: FieldErrors<ContractFormValues>) {
     const first = Object.keys(errors)[0];
-    setTab((FIELD_TAB[first] as ContractTab | undefined) ?? "deal");
+    scrollToPanelSection(FIELD_SECTION[first] ?? "deal");
   }
 
   function onSubmit(values: ContractFormValues) {
     if (!isEditing && !values.vehicleId) {
       form.setError("vehicleId", { message: "Select a vehicle" });
-      setTab("deal");
+      scrollToPanelSection("deal");
       return;
     }
     startTransition(async () => {
@@ -264,7 +262,6 @@ export function ContractPanel({
         setOpen(next);
         if (next) {
           form.reset(toFormValues(contract));
-          setTab("deal");
           setVehicleMode("keep");
         }
       }}
@@ -291,18 +288,18 @@ export function ContractPanel({
               : "Add contract"
           }
         />
-        <Tabs value={tab} onValueChange={(v) => setTab(v as ContractTab)} className="flex min-h-0 flex-1 flex-col gap-0">
-          <PanelModalTabsList>
-            <TabsTrigger value="deal">Deal</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
-            <TabsTrigger value="financials">Financials</TabsTrigger>
-            <TabsTrigger value="notes">Notes</TabsTrigger>
-          </PanelModalTabsList>
-          <PanelModalBody>
+        <PanelModalSections
+          sections={[
+            { id: "deal", label: "Deal" },
+            { id: "billing", label: "Billing" },
+            { id: "financials", label: "Financials" },
+            { id: "notes", label: "Notes" },
+          ]}
+        >
           <Form {...form}>
             <form id="contract-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
             <fieldset disabled={readOnly} className="contents">
-            <PanelModalFormTab value="deal">
+            <PanelModalSection id="deal" title="Deal">
             <section className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -528,9 +525,9 @@ export function ContractPanel({
               />
             </section>
             {isEditing && <ContractVehicleHistorySection contractId={contract!.id} />}
-            </PanelModalFormTab>
+            </PanelModalSection>
 
-            <PanelModalFormTab value="billing">
+            <PanelModalSection id="billing" title="Billing">
             <section className="grid gap-4 sm:grid-cols-3">
               <FormField
                 control={form.control}
@@ -655,9 +652,9 @@ export function ContractPanel({
                 )}
               />
             </section>
-            </PanelModalFormTab>
+            </PanelModalSection>
 
-            <PanelModalFormTab value="financials">
+            <PanelModalSection id="financials" title="Financials">
             <section className="grid gap-4 sm:grid-cols-3">
               <FormField
                 control={form.control}
@@ -805,9 +802,9 @@ export function ContractPanel({
               />
             </section>
             {isEditing && <ContractPaymentHistorySection contractId={contract!.id} />}
-            </PanelModalFormTab>
+            </PanelModalSection>
 
-            <PanelModalFormTab value="notes">
+            <PanelModalSection id="notes" title="Notes">
             <FormField
               control={form.control}
               name="notes"
@@ -822,12 +819,11 @@ export function ContractPanel({
               )}
             />
 
-            </PanelModalFormTab>
+            </PanelModalSection>
             </fieldset>
             </form>
           </Form>
-          </PanelModalBody>
-        </Tabs>
+        </PanelModalSections>
         {!readOnly && (
           <PanelModalFooter>
             <Button type="submit" form="contract-form" disabled={isPending}>

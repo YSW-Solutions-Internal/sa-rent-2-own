@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
@@ -26,15 +26,13 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
-  PanelModalBody,
   PanelModalContent,
   PanelModalFooter,
-  PanelModalFormTab,
   PanelModalHeader,
-  PanelModalTab,
-  PanelModalTabsList,
+  PanelModalSection,
+  PanelModalSections,
+  scrollToPanelSection,
 } from "@/components/ui/panel-modal";
-import { Tabs, TabsTrigger } from "@/components/ui/tabs";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
 import { VEHICLE_STATUS_LABELS as STATUS_LABELS } from "@/lib/vehicle-status";
@@ -86,10 +84,10 @@ function toFormValues(vehicle?: VehicleWithRegistration): VehicleFormValues {
   };
 }
 
-type VehicleTab = "vehicle" | "service" | "compliance" | "transactions" | "history";
+type VehicleSection = "vehicle" | "service" | "compliance";
 
-/** Which tab each form field lives on (anything not listed is on Vehicle). */
-const FIELD_TAB: Record<string, VehicleTab> = {
+/** Which section each form field lives in (anything not listed is in Vehicle). */
+const FIELD_SECTION: Record<string, VehicleSection> = {
   currentMileage: "service",
   nextServiceKm: "service",
   nextServiceDate: "service",
@@ -127,11 +125,10 @@ export function VehiclePanel({
     defaultValues: toFormValues(vehicle),
   });
 
-  const [tab, setTab] = useState<VehicleTab>("vehicle");
-  // A save blocked by validation jumps to the tab holding the first bad field.
+  // A save blocked by validation scrolls to the section holding the first bad field.
   function onInvalid(errors: FieldErrors<VehicleFormValues>) {
     const first = Object.keys(errors)[0];
-    setTab(FIELD_TAB[first] ?? "vehicle");
+    scrollToPanelSection(FIELD_SECTION[first] ?? "vehicle");
   }
 
   function onSubmit(values: VehicleFormValues) {
@@ -159,7 +156,6 @@ export function VehiclePanel({
         setOpen(next);
         if (next) {
           form.reset(toFormValues(vehicle));
-          setTab("vehicle");
         }
       }}
     >
@@ -185,18 +181,22 @@ export function VehiclePanel({
               : "Add vehicle"
           }
         />
-        <Tabs value={tab} onValueChange={(v) => setTab(v as VehicleTab)} className="flex min-h-0 flex-1 flex-col gap-0">
-          <PanelModalTabsList>
-            <TabsTrigger value="vehicle">Vehicle</TabsTrigger>
-            <TabsTrigger value="service">Service &amp; Tracking</TabsTrigger>
-            <TabsTrigger value="compliance">Compliance</TabsTrigger>
-            {isEditing && <TabsTrigger value="transactions">Transactions</TabsTrigger>}
-            {isEditing && <TabsTrigger value="history">Contract History</TabsTrigger>}
-          </PanelModalTabsList>
-          <PanelModalBody>
+        <PanelModalSections
+          sections={[
+            { id: "vehicle", label: "Vehicle" },
+            { id: "service", label: "Service & Tracking" },
+            { id: "compliance", label: "Compliance" },
+            ...(isEditing
+              ? [
+                  { id: "transactions", label: "Transactions" },
+                  { id: "history", label: "Contract History" },
+                ]
+              : []),
+          ]}
+        >
           <Form {...form}>
             <form id="vehicle-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
-              <PanelModalFormTab value="vehicle">
+              <PanelModalSection id="vehicle" title="Vehicle">
               {isEditing && <VehicleTotalCollectedCard vehicleId={vehicle!.id} />}
               <section className="grid gap-4 sm:grid-cols-2">
                 <FormField
@@ -333,9 +333,9 @@ export function VehiclePanel({
                   )}
                 />
               </section>
-              </PanelModalFormTab>
+              </PanelModalSection>
 
-              <PanelModalFormTab value="service">
+              <PanelModalSection id="service" title="Service &amp; Tracking">
               <section className="grid gap-4 sm:grid-cols-2">
 <FormField
                   control={form.control}
@@ -437,9 +437,9 @@ export function VehiclePanel({
                   )}
                 />
               </section>
-              </PanelModalFormTab>
+              </PanelModalSection>
 
-              <PanelModalFormTab value="compliance">
+              <PanelModalSection id="compliance" title="Compliance">
               <section className="grid gap-4 sm:grid-cols-2">
 <FormField
                   control={form.control}
@@ -518,29 +518,26 @@ export function VehiclePanel({
                   />
                 </div>
               </section>
-              </PanelModalFormTab>
+              </PanelModalSection>
             </form>
           </Form>
 
           {isEditing && (
             <>
-              <PanelModalTab value="transactions">
+              <PanelModalSection id="transactions" title="Transactions">
                 <VehicleCostsSection vehicleId={vehicle!.id} canManage={canManage} />
-              </PanelModalTab>
-              <PanelModalTab value="history">
+              </PanelModalSection>
+              <PanelModalSection id="history" title="Contract History">
                 <VehicleContractHistorySection vehicleId={vehicle!.id} />
-              </PanelModalTab>
+              </PanelModalSection>
             </>
           )}
-          </PanelModalBody>
-        </Tabs>
-        {tab !== "transactions" && tab !== "history" && (
-          <PanelModalFooter>
-            <Button type="submit" form="vehicle-form" disabled={isPending}>
-              {isPending ? "Saving…" : "Save"}
-            </Button>
-          </PanelModalFooter>
-        )}
+        </PanelModalSections>
+        <PanelModalFooter>
+          <Button type="submit" form="vehicle-form" disabled={isPending}>
+            {isPending ? "Saving…" : "Save"}
+          </Button>
+        </PanelModalFooter>
       </PanelModalContent>
     </Dialog>
   );
