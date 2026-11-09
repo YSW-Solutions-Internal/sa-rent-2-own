@@ -41,11 +41,17 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** Smooth-scrolls the open panel modal to a section (e.g. the one holding an invalid field). */
+/**
+ * Smooth-scrolls the open panel modal's body to a section (e.g. the one holding
+ * an invalid field). Scrolls only the body: scrollIntoView() would also scroll
+ * the dialog's overflow-hidden shell, shoving the header and rail out of view.
+ */
 export function scrollToPanelSection(id: string) {
-  document
-    .getElementById(SECTION_ID_PREFIX + id)
-    ?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+  const el = document.getElementById(SECTION_ID_PREFIX + id);
+  const container = el?.closest<HTMLElement>("[data-panel-scroll]");
+  if (!el || !container) return;
+  const top = container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top - 8;
+  container.scrollTo({ top: Math.max(0, top), behavior: prefersReducedMotion() ? "auto" : "smooth" });
 }
 
 export interface PanelModalSectionInfo {
@@ -163,7 +169,7 @@ export function PanelModalSections({
           );
         })}
       </nav>
-      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
+      <div ref={scrollRef} data-panel-scroll className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
         {children}
       </div>
     </div>
