@@ -152,10 +152,14 @@ export function ClientsTable({
             <SelectItem value="none">No banking on file</SelectItem>
           </SelectContent>
         </Select>
-        <Button type="button" variant="outline" size="sm" onClick={handleExport}>
-          <Download />
-          Export
-        </Button>
+        {/* Export is gated the same as edit rights (admin only) — Fleet Managers are
+            read-only everywhere else, exporting is a way to take data out. */}
+        {canEdit && (
+          <Button type="button" variant="outline" size="sm" onClick={handleExport}>
+            <Download />
+            Export
+          </Button>
+        )}
         <SelectionActions
           selectedCount={selectedRows.length}
           onCopyAsImage={handleCopyAsImage}

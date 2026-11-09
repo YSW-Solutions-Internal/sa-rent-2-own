@@ -57,6 +57,7 @@ export function TransactionsTable({
   total,
   filters,
   exportedBy,
+  canExport,
 }: {
   /** The current page's rows, straight from the server query. */
   rows: PaymentTransactionRow[];
@@ -64,6 +65,8 @@ export function TransactionsTable({
   total: number;
   filters: TransactionsFilters;
   exportedBy: string;
+  /** Export to Excel — admin only; Fleet Managers are read-only everywhere else. */
+  canExport: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -237,10 +240,12 @@ export function TransactionsTable({
           </SelectContent>
         </Select>
         <div className="ml-auto flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
-            <Download />
-            Export
-          </Button>
+          {canExport && (
+            <Button type="button" variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
+              <Download />
+              Export
+            </Button>
+          )}
           <SelectionActions
             selectedCount={selectedRows.length}
             onCopyAsImage={handleCopyAsImage}
