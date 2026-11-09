@@ -55,7 +55,7 @@ const QUESTIONS: Record<Exclude<Step, "confirm">, string> = {
   reg: "What's the registration number of the vehicle?",
   place: "Who did the service? (workshop or dealer name)",
   current_km: "What's the current odometer reading in km?",
-  next_date: "What's the next service date?",
+  next_date: "What's the next service date? (e.g. 2027-11-08 or 08/11/2027)",
   next_km: "What's the next service km?",
   amount: "What was the total cost of the service in rand? (e.g. 2450 or R2 450.50)",
   work: "What exactly was done? (e.g. oil and filter change, brake pads) Type it, or tap No to skip.",
@@ -79,6 +79,22 @@ const NO_RE = /^\s*(no|n|nope)\s*[.!]*\s*$/i;
 // ---------- normalising / validating (pure) ----------
 
 export const normaliseReg = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/** Edit distance between two short strings (registrations), for "did you mean" suggestions. */
+function levenshtein(a: string, b: string): number {
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+const SUGGEST_MAX_DISTANCE = 2;
+const SUGGEST_MAX_COUNT = 3;
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
@@ -161,16 +177,16 @@ function sanitise(d: FlowData): { data: FlowData; dropped: string[] } {
   }
   if (data.currentKm != null && data.vehicleKm != null && data.currentKm < data.vehicleKm) {
     delete data.currentKm;
-    dropped.push("current km");
+    dropped.push("current km (lower than what's on record)");
   }
   // Dependent fields are only checked once what they depend on is known; they're re-checked as answers arrive.
   if (data.nextDate && data.serviceDate && validateNextDate(data.nextDate, data.serviceDate)) {
     delete data.nextDate;
-    dropped.push("next service date");
+    dropped.push("next service date (needs to be about 12 months after the service date)");
   }
   if (data.nextKm != null && (data.currentKm != null && validateNextKm(data.nextKm, data.currentKm))) {
     delete data.nextKm;
-    dropped.push("next service km");
+    dropped.push("next service km (too close to the current km)");
   }
   return { data, dropped };
 }
@@ -201,9 +217,9 @@ async function prefillFromMessage(text: string): Promise<{ data: FlowData; notes
 
   if (parsed.reg) {
     const reg = normaliseReg(parsed.reg);
-    const v = reg.length >= 3 ? await findCurrentVehicle(reg) : ({ status: "none" } as const);
+    const v = reg.length >= 3 ? await findCurrentVehicle(reg) : { status: "none" as const, suggestions: [] as string[] };
     if (v.status === "ok") Object.assign(data, { vehicleId: v.id, reg, vehicle: v.label, vehicleKm: v.km });
-    else notes.push(`I can't find a vehicle with the current registration ${reg}.`);
+    else notes.push(`I didn't find a vehicle in the fleet with the registration ${reg}.${didYouMean(v.suggestions)}`);
   }
   const serviceDate = parsed.serviceDate ? parseDate(parsed.serviceDate) : null;
   if (serviceDate) data.serviceDate = serviceDate;
@@ -301,12 +317,16 @@ async function saveFlow(id: string, step: Step, data: FlowData) {
   if (error) throw error;
 }
 
-/** Tries to become the active flow for this phone; null if another one already is (caller should queue instead). */
+/**
+ * Tries to become the active flow for this phone; null if another one already is (caller should queue instead).
+ * maybeSingle, not single: losing the claim is an expected outcome here, not
+ * an error, and single() throws on anything but exactly one row.
+ */
 async function claimFlow(phone: string, step: Step, data: FlowData) {
   const db = createAdminClient();
   const { data: row, error } = await db
     .rpc("whatsapp_flow_claim", { p_phone: phone, p_flow: FLOW, p_step: step, p_data: data as never })
-    .single();
+    .maybeSingle();
   if (error) throw error;
   return rowToFlow(row as Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null);
 }
@@ -317,10 +337,13 @@ async function enqueueFlow(phone: string, step: Step, data: FlowData) {
   if (error) throw error;
 }
 
-/** Closes (deletes) a flow and, if another vehicle is queued behind it, promotes it to active. */
+/**
+ * Closes (deletes) a flow and, if another vehicle is queued behind it, promotes it to active.
+ * maybeSingle, not single: an empty queue is expected, not an error.
+ */
 async function closeAndPromote(id: string) {
   const db = createAdminClient();
-  const { data: row, error } = await db.rpc("whatsapp_flow_close_and_promote", { p_id: id }).single();
+  const { data: row, error } = await db.rpc("whatsapp_flow_close_and_promote", { p_id: id }).maybeSingle();
   if (error) throw error;
   return row as Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null;
 }
@@ -333,6 +356,19 @@ async function closeWithPromotion(id: string, message: string): Promise<string> 
 
 // ---------- DB ----------
 
+/** Current plates closest in spelling to `reg` (a typo-tolerant "did you mean"), nearest first. */
+async function suggestSimilarPlates(reg: string): Promise<string[]> {
+  const db = createAdminClient();
+  const { data } = await db.from("vehicle_registrations").select("plate_number").is("effective_to", null);
+  if (!data) return [];
+  return data
+    .map((r) => ({ plate: r.plate_number, dist: levenshtein(reg, r.plate_number) }))
+    .filter((r) => r.dist > 0 && r.dist <= SUGGEST_MAX_DISTANCE)
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, SUGGEST_MAX_COUNT)
+    .map((r) => r.plate);
+}
+
 /** Finds the vehicle whose CURRENT plate is exactly this registration (historic plates don't count). */
 async function findCurrentVehicle(reg: string) {
   const db = createAdminClient();
@@ -342,14 +378,14 @@ async function findCurrentVehicle(reg: string) {
     .eq("plate_number", reg)
     .is("effective_to", null)
     .maybeSingle();
-  if (!plate) return { status: "none" as const };
+  if (!plate) return { status: "none" as const, suggestions: await suggestSimilarPlates(reg) };
 
   const { data: v } = await db
     .from("vehicles")
     .select("id, make, model, year, status, current_mileage")
     .eq("id", plate.vehicle_id)
     .maybeSingle();
-  if (!v) return { status: "none" as const };
+  if (!v) return { status: "none" as const, suggestions: await suggestSimilarPlates(reg) };
   return {
     status: "ok" as const,
     id: v.id,
@@ -358,6 +394,8 @@ async function findCurrentVehicle(reg: string) {
     km: v.current_mileage,
   };
 }
+
+const didYouMean = (suggestions: string[]) => (suggestions.length ? ` Did you mean ${suggestions.join(" or ")}?` : "");
 
 async function saveService(user: FlowUser, d: Required<FlowData>): Promise<boolean> {
   // One transaction (cost row + vehicle update), logged in audit_log against this person's profile
@@ -520,7 +558,7 @@ async function runServiceFlow(
       if (reg.length < 3) return retry("That doesn't look like a registration.");
       const v = await findCurrentVehicle(reg);
       if (v.status === "none") {
-        return retry(`I can't find a vehicle with the current registration ${reg}. Check the plate and try again.`);
+        return retry(`I didn't find a vehicle in the fleet with that registration.${didYouMean(v.suggestions)}`);
       }
       // Keep anything already pre-filled from a free-text message, re-checked now the vehicle's km is known.
       const { data: kept, dropped } = sanitise({ ...data, vehicleId: v.id, reg, vehicle: v.label, vehicleKm: v.km });
@@ -542,7 +580,7 @@ async function runServiceFlow(
     }
     case "next_date": {
       const iso = parseDate(text);
-      if (!iso) return retry("I couldn't read that date.");
+      if (!iso) return retry("I couldn't read that date — try YYYY-MM-DD or DD/MM/YYYY, e.g. 2027-11-08 or 08/11/2027.");
       const err = validateNextDate(iso, data.serviceDate!);
       if (err) return retry(err);
       return ask("next_km", { ...data, nextDate: iso });
