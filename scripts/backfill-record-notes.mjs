@@ -6,7 +6,11 @@
  * one `record_notes` row per record, so the old text isn't lost once the
  * UI stops reading the column directly. `created_by` is left null (no
  * real author exists for this historical text) and is rendered as
- * "(imported)" by the Activity feed.
+ * "(imported)" by the Activity feed. The imported entry's timestamp uses
+ * `updated_at` where the source table has one (clients, contracts,
+ * insurance_claims — bumped on every write, so it reflects the last time
+ * the notes text actually changed), falling back to `created_at` only
+ * for vehicle_costs, which has neither.
  *
  * Deliberately not split by the `[Arrears update Oct 2026]` /
  * `[Contract end review Oct 2026]` markers some contracts.notes values
@@ -43,13 +47,23 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 const SOURCE_TABLES = ["clients", "contracts", "vehicle_costs", "insurance_claims"];
 
+// Tables with an `updated_at` bumped by an unconditional `set_updated_at()`
+// trigger on every write — a far better proxy for "when was this note
+// text actually written" than `created_at` (a row's creation time, e.g.
+// the Oct 23 fleet reload import, is unrelated to a later UPDATE that
+// only touched `notes`, like the Oct 28 arrears-update script).
+// vehicle_costs has neither trigger nor column, so falls back to
+// created_at there.
+const HAS_UPDATED_AT = new Set(["clients", "contracts", "insurance_claims"]);
+
 const rowsToInsert = [];
 const perTableCounts = {};
 
 for (const table of SOURCE_TABLES) {
+  const columns = HAS_UPDATED_AT.has(table) ? "id, notes, created_at, updated_at" : "id, notes, created_at";
   const { data, error } = await supabase
     .from(table)
-    .select("id, notes, created_at")
+    .select(columns)
     .not("notes", "is", null)
     .neq("notes", "");
 
@@ -65,7 +79,7 @@ for (const table of SOURCE_TABLES) {
       entity_id: row.id,
       note: row.notes.trim(),
       created_by: null,
-      created_at: row.created_at ?? new Date().toISOString(),
+      created_at: row.updated_at ?? row.created_at ?? new Date().toISOString(),
     });
   }
 }
