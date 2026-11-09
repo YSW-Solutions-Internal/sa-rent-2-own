@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus } from "lucide-react";
+import { Car, ClipboardList, DollarSign, FileText, Plus, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -183,13 +183,13 @@ export function VehiclePanel({
         />
         <PanelModalSections
           sections={[
-            { id: "vehicle", label: "Vehicle" },
-            { id: "service", label: "Service & Tracking" },
-            { id: "compliance", label: "Compliance" },
+            { id: "vehicle", label: "Vehicle", icon: Car },
+            { id: "service", label: "Service & Tracking", icon: Wrench },
+            { id: "compliance", label: "Compliance", icon: ClipboardList },
             ...(isEditing
               ? [
-                  { id: "transactions", label: "Transactions" },
-                  { id: "history", label: "Contract History" },
+                  { id: "transactions", label: "Transactions", icon: DollarSign },
+                  { id: "history", label: "Contract History", icon: FileText },
                 ]
               : []),
           ]}

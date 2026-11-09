@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, Plus } from "lucide-react";
+import { Eye, FileText, Landmark, Plus, User } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -195,9 +195,9 @@ export function ClientPanel({
           <form id="client-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
             <PanelModalSections
               sections={[
-                { id: "client", label: "Client" },
-                { id: "banking", label: "Banking Details" },
-                ...(isEditing ? [{ id: "contracts", label: "Contracts" }] : []),
+                { id: "client", label: "Client", icon: User },
+                { id: "banking", label: "Banking Details", icon: Landmark },
+                ...(isEditing ? [{ id: "contracts", label: "Contracts", icon: FileText }] : []),
               ]}
             >
             <fieldset disabled={readOnly} className="contents">
