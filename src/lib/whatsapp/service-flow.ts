@@ -317,12 +317,16 @@ async function saveFlow(id: string, step: Step, data: FlowData) {
   if (error) throw error;
 }
 
-/** Tries to become the active flow for this phone; null if another one already is (caller should queue instead). */
+/**
+ * Tries to become the active flow for this phone; null if another one already is (caller should queue instead).
+ * maybeSingle, not single: losing the claim is an expected outcome here, not
+ * an error, and single() throws on anything but exactly one row.
+ */
 async function claimFlow(phone: string, step: Step, data: FlowData) {
   const db = createAdminClient();
   const { data: row, error } = await db
     .rpc("whatsapp_flow_claim", { p_phone: phone, p_flow: FLOW, p_step: step, p_data: data as never })
-    .single();
+    .maybeSingle();
   if (error) throw error;
   return rowToFlow(row as Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null);
 }
@@ -333,10 +337,13 @@ async function enqueueFlow(phone: string, step: Step, data: FlowData) {
   if (error) throw error;
 }
 
-/** Closes (deletes) a flow and, if another vehicle is queued behind it, promotes it to active. */
+/**
+ * Closes (deletes) a flow and, if another vehicle is queued behind it, promotes it to active.
+ * maybeSingle, not single: an empty queue is expected, not an error.
+ */
 async function closeAndPromote(id: string) {
   const db = createAdminClient();
-  const { data: row, error } = await db.rpc("whatsapp_flow_close_and_promote", { p_id: id }).single();
+  const { data: row, error } = await db.rpc("whatsapp_flow_close_and_promote", { p_id: id }).maybeSingle();
   if (error) throw error;
   return row as Database["public"]["Tables"]["whatsapp_flows"]["Row"] | null;
 }
