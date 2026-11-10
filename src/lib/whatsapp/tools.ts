@@ -14,8 +14,9 @@ import { END_OF_CONTRACT_STATUSES, FLEET_STATUSES } from "@/lib/vehicle-status";
  * column lists, and role/permission checks via the same helpers the pages
  * use (plus `ctx.financeEnabled`, a per-number permission separate from
  * role — see `whatsapp_finance_enabled`). Never selected, for anyone, under
- * any permission: ID numbers, cell numbers, banking details, purchase /
- * potential sale prices.
+ * any permission: ID numbers, cell numbers, banking details. Purchase /
+ * potential-sale / sale price are finance-gated too (vehicle_financials
+ * only) — see `ctx.financeEnabled`.
  */
 export interface ToolContext {
   role: UserRole;
@@ -120,7 +121,7 @@ async function describeVehicles(vehicles: VehicleRow[], ctx: ToolContext) {
 
 /**
  * Shared vehicle-matching logic behind find_vehicle, vehicle_costs and
- * vehicle_revenue: registration/file no/client name/description -> matching
+ * vehicle_financials: registration/file no/client name/description -> matching
  * VehicleRow[], fleet vehicles ranked before ended ones. Factored out of the
  * old find_vehicle so every tool that takes "a vehicle" resolves it the
  * same way.
@@ -184,7 +185,7 @@ async function resolveVehicles(query: string, ctx: ToolContext): Promise<Vehicle
 
 /**
  * resolveVehicles() plus the "which one?" disambiguation shape every
- * single-vehicle tool (find_vehicle, vehicle_costs, vehicle_revenue) needs
+ * single-vehicle tool (find_vehicle, vehicle_costs, vehicle_financials) needs
  * when it matches none or several. Returns the one VehicleRow on a clean
  * match, or the tool result to hand straight back otherwise.
  */
@@ -360,16 +361,27 @@ async function revenueSummary(raw: unknown, ctx: ToolContext) {
   };
 }
 
-const vehicleRevenueInput = z.object({ query: z.string().min(2).max(60) });
+const vehicleFinancialsInput = z.object({ query: z.string().min(2).max(60) });
 
-async function vehicleRevenue(raw: unknown, ctx: ToolContext) {
+async function vehicleFinancials(raw: unknown, ctx: ToolContext) {
   if (!ctx.financeEnabled) return { error: "Not permitted for this user" };
-  const { query } = vehicleRevenueInput.parse(raw);
+  const { query } = vehicleFinancialsInput.parse(raw);
   const picked = await pickVehicle(query, ctx);
   if ("result" in picked) return picked.result;
 
   const [described] = await describeVehicles([picked.vehicle], ctx);
   const db = createAdminClient();
+
+  // Purchase/potential-sale/sale price live on vehicles (SPEC item 47) but
+  // aren't in VEHICLE_COLUMNS/VehicleRow — those are shared by every vehicle
+  // tool, finance-gated or not, and these three stay out of the non-finance
+  // ones (find_vehicle, list_vehicles, vehicle_costs).
+  const { data: priceRow } = await db
+    .from("vehicles")
+    .select("purchase_price, potential_sale_price, sale_price")
+    .eq("id", picked.vehicle.id)
+    .single();
+
   const { data: txns } = await db
     .from("payment_transactions_detail")
     .select("transaction_date, type, cash_effect, deal_number")
@@ -384,6 +396,9 @@ async function vehicleRevenue(raw: unknown, ctx: ToolContext) {
 
   return {
     vehicle: { registration: described.registration, file_no: described.file_no },
+    purchase_price_rand: priceRow?.purchase_price ?? null,
+    potential_sale_price_rand: priceRow?.potential_sale_price ?? null,
+    sale_price_rand: priceRow?.sale_price ?? null,
     lifetime_net_collected_rand: round2(all.reduce((sum, t) => sum + t.cash_effect, 0)),
     transaction_count: all.length,
     outstanding_balance_rand: round2((contracts ?? []).reduce((sum, c) => sum + (c.outstanding_balance ?? 0), 0)),
@@ -505,7 +520,7 @@ export const TOOLS = [
   {
     name: "vehicle_costs",
     description:
-      "Service/repair/maintenance cost history for one vehicle (what was spent on it, when, by whom, at what mileage) — this is spend on the vehicle, not client payments or revenue; use revenue_summary/vehicle_revenue for those. Look up by registration, file number, client name, or make/model/colour/year. Returns the most recent cost rows first and their total.",
+      "Service/repair/maintenance cost history for one vehicle (what was spent on it, when, by whom, at what mileage) — this is running spend on the vehicle, not what it cost to buy or client payments; use vehicle_financials for purchase/sale price and revenue_summary for client revenue. Look up by registration, file number, client name, or make/model/colour/year. Returns the most recent cost rows first and their total.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -535,16 +550,16 @@ export const TOOLS = [
     run: revenueSummary,
   },
   {
-    name: "vehicle_revenue",
+    name: "vehicle_financials",
     description:
-      "One vehicle's lifetime payment picture: net collected across every contract it's ever been on, current outstanding balance and arrears, and its most recent transactions. Look up by registration, file number, client name, or make/model/colour/year. Requires finance permission.",
+      "One vehicle's full money picture: what it cost to buy, its potential sale price, what it actually sold for (if sold), net collected from clients across every contract it's ever been on, current outstanding balance and arrears, and its most recent transactions. Look up by registration, file number, client name, or make/model/colour/year. Requires finance permission.",
     input_schema: {
       type: "object" as const,
       properties: { query: { type: "string", description: "Registration, file number, client name, or make/model/colour/year words" } },
       required: ["query"],
       additionalProperties: false,
     },
-    run: vehicleRevenue,
+    run: vehicleFinancials,
   },
 ];
 
