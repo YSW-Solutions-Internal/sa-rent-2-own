@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, FileText, History, Landmark, Plus, User } from "lucide-react";
+import { Eye, FileText, Landmark, Plus, User } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,6 @@ import type { ClientWithBanking } from "./types";
 import { ClientContractsSection } from "./client-contracts-section";
 import { getClientTotalCollected } from "./contract-links-actions";
 import { TotalCollectedCard } from "@/components/total-collected-card";
-import { ActivitySection } from "@/lib/activity-log/activity-section";
 
 const ACCOUNT_TYPE_LABELS: Record<(typeof bankAccountTypeValues)[number], string> = {
   cheque: "Cheque / current",
@@ -199,7 +198,6 @@ export function ClientPanel({
                 { id: "client", label: "Client", icon: User },
                 { id: "banking", label: "Banking Details", icon: Landmark },
                 ...(isEditing ? [{ id: "contracts", label: "Contracts", icon: FileText }] : []),
-                ...(isEditing && !readOnly ? [{ id: "activity", label: "Activity", icon: History }] : []),
               ]}
             >
             <fieldset disabled={readOnly} className="contents">
@@ -438,11 +436,6 @@ export function ClientPanel({
             {isEditing && (
               <PanelModalSection id="contracts" title="Contracts">
                 <ClientContractsSection clientId={client!.id} />
-              </PanelModalSection>
-            )}
-            {isEditing && !readOnly && (
-              <PanelModalSection id="activity" title="Activity">
-                <ActivitySection entityType="clients" entityId={client!.id} />
               </PanelModalSection>
             )}
             </fieldset>

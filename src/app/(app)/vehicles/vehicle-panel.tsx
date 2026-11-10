@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BadgeDollarSign, Car, ClipboardList, DollarSign, FileText, History, Plus, Wrench } from "lucide-react";
+import { BadgeDollarSign, Car, ClipboardList, DollarSign, FileText, Plus, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -36,8 +36,6 @@ import {
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
 import { VEHICLE_STATUS_LABELS as STATUS_LABELS } from "@/lib/vehicle-status";
-
-import { ActivitySection } from "@/lib/activity-log/activity-section";
 
 import { createVehicle, updateVehicle } from "./actions";
 import { DeleteVehicleButton } from "./delete-vehicle-button";
@@ -203,7 +201,6 @@ export function VehiclePanel({
               ? [
                   { id: "transactions", label: "Transactions", icon: DollarSign },
                   { id: "history", label: "Contract History", icon: FileText },
-                  { id: "activity", label: "Activity", icon: History },
                 ]
               : []),
           ]}
@@ -591,9 +588,6 @@ export function VehiclePanel({
               </PanelModalSection>
               <PanelModalSection id="history" title="Contract History">
                 <VehicleContractHistorySection vehicleId={vehicle!.id} />
-              </PanelModalSection>
-              <PanelModalSection id="activity" title="Activity">
-                <ActivitySection entityType="vehicles" entityId={vehicle!.id} />
               </PanelModalSection>
             </>
           )}

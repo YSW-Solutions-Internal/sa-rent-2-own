@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BadgeDollarSign, CircleDollarSign, FileText, History, Plus, StickyNote } from "lucide-react";
+import { BadgeDollarSign, CircleDollarSign, FileText, Plus, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { ActivitySection } from "@/lib/activity-log/activity-section";
 import { ClientPanel } from "../clients/client-panel";
 import { VehiclePanel } from "../vehicles/vehicle-panel";
 import { Textarea } from "@/components/ui/textarea";
@@ -280,7 +279,6 @@ export function ContractPanel({
             { id: "billing", label: "Billing", icon: CircleDollarSign },
             { id: "financials", label: "Financials", icon: BadgeDollarSign },
             { id: "notes", label: "Notes", icon: StickyNote },
-            ...(isEditing && !readOnly ? [{ id: "activity", label: "Activity", icon: History }] : []),
           ]}
         >
           <Form {...form}>
@@ -732,11 +730,6 @@ export function ContractPanel({
             </fieldset>
             </form>
           </Form>
-          {isEditing && !readOnly && (
-            <PanelModalSection id="activity" title="Activity">
-              <ActivitySection entityType="contracts" entityId={contract!.id} />
-            </PanelModalSection>
-          )}
         </PanelModalSections>
         {!readOnly && (
           <PanelModalFooter>
