@@ -1,4 +1,4 @@
-import type { ContractStatus, PaymentMethod, TrackerStatus, VehicleStatus } from "@/lib/database.types";
+import type { ContractStatus, ContractType, PaymentMethod, TrackerStatus, VehicleStatus } from "@/lib/database.types";
 
 export interface VehicleWithRegistration {
   id: string;
@@ -43,5 +43,6 @@ export interface VehicleWithRegistration {
    * that it's Cancelled/Defaulted/etc., not blank. */
   current_deal_number: string | null;
   current_contract_status: ContractStatus | null;
+  current_contract_type: ContractType | null;
   past_client_names: string | null;
 }

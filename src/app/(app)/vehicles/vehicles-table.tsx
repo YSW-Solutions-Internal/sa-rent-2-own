@@ -51,7 +51,7 @@ import {
   resolveVehicleColourHex,
   toArgb,
 } from "@/lib/vehicle-colours";
-import type { ContractStatus, PaymentMethod, TrackerStatus, VehicleStatus } from "@/lib/database.types";
+import type { ContractStatus, ContractType, PaymentMethod, TrackerStatus, VehicleStatus } from "@/lib/database.types";
 
 import { vehicleStatusValues } from "./schema";
 import { updateVehicleColour, updateVehicleStatus } from "./actions";
@@ -81,6 +81,13 @@ const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   cancelled: "Cancelled",
   defaulted: "Defaulted",
   repossessed: "Repossessed",
+};
+
+const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
+  rent_to_own: "Rent-to-own",
+  short_term_rental: "Short-term rental",
+  rental: "Rental",
+  other: "Other",
 };
 
 const PAID_CHIP_COLORS = {
@@ -346,6 +353,7 @@ type ColumnId =
   | "client"
   | "dealNumber"
   | "contractStatus"
+  | "contractType"
   | "nextService"
   | "nextServiceDate"
   | "monthsLeft"
@@ -385,6 +393,7 @@ const DEFAULT_COLUMN_ORDER: ColumnId[] = [
   "client",
   "dealNumber",
   "contractStatus",
+  "contractType",
   "nextService",
   "nextServiceDate",
   "monthsLeft",
@@ -417,6 +426,7 @@ const DEFAULT_HIDDEN_COLUMNS: ColumnId[] = [
   "legacyStatusNote",
   "dealNumber",
   "contractStatus",
+  "contractType",
   "currentMileage",
   "nextServiceKm",
   "lastServicedBy",
@@ -453,6 +463,7 @@ const COLUMN_LABELS: Record<ColumnId, string> = {
   client: "Client",
   dealNumber: "Deal number",
   contractStatus: "Contract status",
+  contractType: "Contract type",
   nextService: "Next service in:",
   nextServiceDate: "Next service date",
   monthsLeft: "Months left",
@@ -486,6 +497,7 @@ const MANAGER_ONLY_COLUMNS = new Set<ColumnId>([
   "client",
   "dealNumber",
   "contractStatus",
+  "contractType",
   "monthsLeft",
   "contractEndDate",
   "clientCell",
@@ -592,6 +604,8 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
       return vehicle.current_deal_number ?? "—";
     case "contractStatus":
       return vehicle.current_contract_status ? CONTRACT_STATUS_LABELS[vehicle.current_contract_status] : "—";
+    case "contractType":
+      return vehicle.current_contract_type ? CONTRACT_TYPE_LABELS[vehicle.current_contract_type] : "—";
     case "nextService":
       return <ServiceCountdown date={vehicle.next_service_date} />;
     case "nextServiceDate":
@@ -733,6 +747,8 @@ function exportValue(column: ColumnId, vehicle: VehicleWithRegistration): string
       return vehicle.current_deal_number ?? "";
     case "contractStatus":
       return vehicle.current_contract_status ? CONTRACT_STATUS_LABELS[vehicle.current_contract_status] : "";
+    case "contractType":
+      return vehicle.current_contract_type ? CONTRACT_TYPE_LABELS[vehicle.current_contract_type] : "";
     case "nextService":
       return formatServiceCountdown(vehicle.next_service_date);
     case "nextServiceDate":
@@ -1032,6 +1048,7 @@ export function VehiclesTable({
     client: (a, b) => compareStrings(a.current_client_name, b.current_client_name),
     dealNumber: (a, b) => compareStrings(a.current_deal_number, b.current_deal_number),
     contractStatus: (a, b) => compareStrings(a.current_contract_status, b.current_contract_status),
+    contractType: (a, b) => compareStrings(a.current_contract_type, b.current_contract_type),
     nextService: (a, b) =>
       compareNumbers(
         a.next_service_date ? Date.parse(a.next_service_date) : null,
