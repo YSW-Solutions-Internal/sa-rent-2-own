@@ -26,7 +26,7 @@ export default async function StaffPage() {
   const supabase = await createClient();
   const { data: staff } = await supabase
     .from("profiles")
-    .select("id, full_name, phone, role, is_active, whatsapp_enabled")
+    .select("id, full_name, phone, role, is_active, whatsapp_enabled, whatsapp_finance_enabled")
     .order("full_name");
 
   return (

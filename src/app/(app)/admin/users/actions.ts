@@ -94,7 +94,10 @@ export async function setStaffWhatsAppAccess(userId: string, enabled: boolean): 
   const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
-    .update({ whatsapp_enabled: enabled })
+    // Turning the bot off also revokes finance access, so it can't be left
+    // silently switched on behind a bot access that's since been removed
+    // and later re-approved.
+    .update(enabled ? { whatsapp_enabled: true } : { whatsapp_enabled: false, whatsapp_finance_enabled: false })
     .eq("id", userId);
 
   if (error) {
@@ -163,6 +166,10 @@ export async function updateStaffUser(userId: string, raw: unknown): Promise<Act
       phone,
       role: parsed.data.role,
       whatsapp_enabled: parsed.data.role === "technician" ? false : parsed.data.whatsappEnabled,
+      // Finance is a stricter sub-permission of the bot itself — never true
+      // without whatsapp_enabled also being true.
+      whatsapp_finance_enabled:
+        parsed.data.role !== "technician" && parsed.data.whatsappEnabled ? parsed.data.whatsappFinanceEnabled : false,
     })
     .eq("id", userId);
 

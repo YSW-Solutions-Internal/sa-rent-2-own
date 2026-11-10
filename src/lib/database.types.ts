@@ -60,6 +60,7 @@ export interface Database {
           role: UserRole;
           is_active: boolean;
           whatsapp_enabled: boolean;
+          whatsapp_finance_enabled: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -71,6 +72,7 @@ export interface Database {
           role?: UserRole;
           is_active?: boolean;
           whatsapp_enabled?: boolean;
+          whatsapp_finance_enabled?: boolean;
           created_at?: string;
           updated_at?: string;
         };

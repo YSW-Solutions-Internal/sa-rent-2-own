@@ -49,7 +49,7 @@ async function handleInbound(params: Record<string, string>) {
     const { data: profile } = phone
       ? await db
           .from("profiles")
-          .select("id, full_name, role, is_active, whatsapp_enabled")
+          .select("id, full_name, role, is_active, whatsapp_enabled, whatsapp_finance_enabled")
           // profiles.phone is stored without the leading "+" (27...), so accept both forms.
           .in("phone", [phone, phone.replace(/^\+/, "")])
           .maybeSingle()
@@ -95,7 +95,12 @@ async function handleInbound(params: Record<string, string>) {
     }
 
     const history = await recentConversation(key, inboundId);
-    const reply = await answerQuestion(question, { fullName: profile.full_name }, { role: profile.role }, history);
+    const reply = await answerQuestion(
+      question,
+      { fullName: profile.full_name },
+      { role: profile.role, financeEnabled: profile.whatsapp_finance_enabled },
+      history
+    );
     await sendWhatsAppMessage(from, reply);
     await recordOutbound({ phone: key, profileId: profile.id, body: reply, kind: "answer" });
     await markInbound(inboundId, "answered", profile.id);
