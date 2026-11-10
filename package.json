@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "import:current-fleet": "node --env-file=.env.local scripts/import-current-fleet.mjs",
     "import:current-fleet:dry-run": "node --env-file=.env.local scripts/import-current-fleet.mjs --dry-run"
   },
@@ -56,6 +58,7 @@
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vitest": "^5.1.0",
     "ws": "^8.21.3",
     "xlsx": "^0.18.5"
   }
