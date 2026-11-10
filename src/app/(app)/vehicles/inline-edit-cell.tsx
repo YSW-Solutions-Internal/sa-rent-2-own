@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 
 import { updateVehicleInlineField, type InlineEditableField } from "./actions";
 
+/** How long the inline-edit Undo toast (and its countdown bar) stays up. */
+const UNDO_TOAST_DURATION_MS = 8000;
+
 /**
  * A table cell whose value is edited in place: click the value, type, then
  * Enter or click away to save (Escape cancels). `display` is what's shown
@@ -61,10 +64,32 @@ export function InlineEditCell({
         toast.error(result.error);
         return;
       }
-      toast(`${label} updated`, {
-        duration: 8000,
-        action: { label: "Undo", onClick: () => save(previous, next) },
-      });
+      toast.custom(
+        (id) => (
+          <div className="relative w-[var(--width)] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg">
+            <div className="flex items-center gap-3 px-4 py-3 text-sm">
+              <span className="flex-1">{`${label} updated`}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  toast.dismiss(id);
+                  save(previous, next);
+                }}
+                className="shrink-0 rounded-md bg-destructive px-3 py-1 text-xs font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+              >
+                Undo
+              </button>
+            </div>
+            {/* Subtle countdown of the Undo window — purely decorative, so
+                it's dropped rather than frozen under prefers-reduced-motion. */}
+            <div
+              className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-destructive motion-reduce:hidden"
+              style={{ animation: `toast-countdown ${UNDO_TOAST_DURATION_MS}ms linear forwards` }}
+            />
+          </div>
+        ),
+        { duration: UNDO_TOAST_DURATION_MS, position: "bottom-right" }
+      );
     });
   }
 
