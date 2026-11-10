@@ -20,9 +20,6 @@ export interface ContractWithDetails {
   end_date: string | null;
   payment_method: PaymentMethod;
   installment_amount: number | null;
-  purchase_price: number | null;
-  potential_sale_price: number | null;
-  sale_price: number | null;
   residual_value: number | null;
   total_collected: number;
   outstanding_balance: number;

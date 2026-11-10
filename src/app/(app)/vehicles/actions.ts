@@ -21,6 +21,12 @@ function toInt(value: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function toNumber(value: string | undefined): number | null {
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function toVehicleRow(values: VehicleFormValues) {
   return {
     file_no: values.fileNo,
@@ -43,6 +49,9 @@ function toVehicleRow(values: VehicleFormValues) {
     warranty_active: values.warrantyActive ?? false,
     warranty_notes: values.warrantyNotes || null,
     has_contract_file: values.hasContractFile ?? false,
+    purchase_price: toNumber(values.purchasePrice),
+    potential_sale_price: toNumber(values.potentialSalePrice),
+    sale_price: toNumber(values.salePrice),
   };
 }
 

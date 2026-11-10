@@ -50,7 +50,7 @@ export async function getVehicleDetails(
     supabase
       .from("vehicles")
       .select(
-        "file_no, make, model, year, colour, vin, engine_number, status, current_mileage, next_service_km, next_service_date, last_serviced_by, tracker_supplier, tracker_running, natis_on_file, has_spare_key, license_disc_expiry, warranty_active"
+        "file_no, make, model, year, colour, vin, engine_number, status, current_mileage, next_service_km, next_service_date, last_serviced_by, tracker_supplier, tracker_running, natis_on_file, has_spare_key, license_disc_expiry, warranty_active, purchase_price, potential_sale_price"
       )
       .eq("id", vehicleId)
       .maybeSingle(),
@@ -62,7 +62,7 @@ export async function getVehicleDetails(
       .maybeSingle(),
     supabase
       .from("contracts")
-      .select("client_id, start_date, end_date, installment_amount, purchase_price, potential_sale_price")
+      .select("client_id, start_date, end_date, installment_amount")
       .eq("vehicle_id", vehicleId)
       .eq("status", "active")
       .maybeSingle(),
@@ -107,8 +107,8 @@ export async function getVehicleDetails(
       contractStart: contract?.start_date ?? null,
       contractEnd: contract?.end_date ?? null,
       installmentAmount: contract?.installment_amount ?? null,
-      purchasePrice: showPrices ? (contract?.purchase_price ?? null) : null,
-      potentialSalePrice: showPrices ? (contract?.potential_sale_price ?? null) : null,
+      purchasePrice: showPrices ? vehicle.purchase_price : null,
+      potentialSalePrice: showPrices ? vehicle.potential_sale_price : null,
     },
   };
 }

@@ -129,7 +129,7 @@ export function ClientsTable({
       ]),
       exportedBy,
       columns,
-      rows: filteredRows,
+      rows: selectedRows.length > 0 ? selectedRows : filteredRows,
     });
   }
 

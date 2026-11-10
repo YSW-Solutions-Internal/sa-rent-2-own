@@ -31,6 +31,7 @@ const WORK_DONE_OPTIONS = [
   "Tyres",
   "Battery",
   "Wiper Blades",
+  "Panelbeating and Parts",
 ] as const;
 
 /** Splits a saved "What was done" back into the chips and the free text (see onSubmit below). */

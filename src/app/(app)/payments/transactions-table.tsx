@@ -170,15 +170,23 @@ export function TransactionsTable({
     setIsExporting(true);
     toast.loading("Preparing export…", { id: "payments-tx-export" });
     try {
-      const result = await exportTransactions({
-        q: filters.q,
-        type: filters.type,
-        sort: filters.sort,
-        dir: filters.dir,
-      });
-      if ("error" in result) {
-        toast.error(result.error, { id: "payments-tx-export" });
-        return;
+      // A selection exports just those rows (already loaded, no re-query needed).
+      // With nothing selected, re-query every matching row, not just the loaded page.
+      let exportRows: PaymentTransactionRow[];
+      if (selectedRows.length > 0) {
+        exportRows = selectedRows;
+      } else {
+        const result = await exportTransactions({
+          q: filters.q,
+          type: filters.type,
+          sort: filters.sort,
+          dir: filters.dir,
+        });
+        if ("error" in result) {
+          toast.error(result.error, { id: "payments-tx-export" });
+          return;
+        }
+        exportRows = result.rows;
       }
 
       const { exportToExcel, summarizeFilters } = await import("@/lib/export-to-excel");
@@ -212,13 +220,13 @@ export function TransactionsTable({
         ]),
         exportedBy,
         columns,
-        rows: result.rows,
+        rows: exportRows,
       });
-      toast.success(`Exported ${result.rows.length.toLocaleString()} transactions`, { id: "payments-tx-export" });
+      toast.success(`Exported ${exportRows.length.toLocaleString()} transactions`, { id: "payments-tx-export" });
     } finally {
       setIsExporting(false);
     }
-  }, [filters.q, filters.type, filters.sort, filters.dir, exportedBy]);
+  }, [filters.q, filters.type, filters.sort, filters.dir, exportedBy, selectedRows]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">

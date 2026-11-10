@@ -150,6 +150,9 @@ const VEHICLE_FIELDS: Record<string, FieldConfig> = {
   warranty_notes: { label: "Warranty notes", format: text },
   has_contract_file: { label: "Has contract file", format: bool },
   insurance_claim_status: { label: "Insurance claim status", format: enumLabel(INSURANCE_CLAIM_STATUS_LABELS) },
+  purchase_price: { label: "Purchase price", format: currency },
+  potential_sale_price: { label: "Potential sale price", format: currency },
+  sale_price: { label: "Sale price", format: currency },
   // Internal/not independently meaningful — skipped rather than configured:
   // legacy_status_note (raw import text, superseded by status),
   // assigned_to (uuid; assigned_to_name above is the readable form).
@@ -177,9 +180,6 @@ const CONTRACT_FIELDS: Record<string, FieldConfig> = {
   status: { label: "Status", format: enumLabel(CONTRACT_STATUS_LABELS) },
   payment_method: { label: "Payment method", format: enumLabel(PAYMENT_METHOD_LABELS) },
   installment_amount: { label: "Installment", format: currency },
-  purchase_price: { label: "Purchase price", format: currency },
-  potential_sale_price: { label: "Potential sale price", format: currency },
-  sale_price: { label: "Sale price", format: currency },
   residual_value: { label: "Residual value", format: currency },
   total_collected: { label: "Total collected", format: currency },
   outstanding_balance: { label: "Outstanding balance", format: currency },

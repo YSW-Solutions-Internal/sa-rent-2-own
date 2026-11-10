@@ -10,10 +10,19 @@ export async function FleetValueChart() {
 
   const { data: contracts } = await supabase
     .from("contracts")
-    .select("purchase_price, total_collected")
+    .select("vehicle_id, total_collected")
     .eq("status", "active");
 
-  const totalPurchasePrice = (contracts ?? []).reduce((sum, c) => sum + (c.purchase_price ?? 0), 0);
+  const vehicleIds = [...new Set((contracts ?? []).map((c) => c.vehicle_id).filter((id): id is string => id !== null))];
+  const { data: vehicles } = vehicleIds.length
+    ? await supabase.from("vehicles").select("id, purchase_price").in("id", vehicleIds)
+    : { data: [] };
+  const purchasePriceByVehicle = new Map((vehicles ?? []).map((v) => [v.id, v.purchase_price]));
+
+  const totalPurchasePrice = (contracts ?? []).reduce(
+    (sum, c) => sum + (c.vehicle_id ? (purchasePriceByVehicle.get(c.vehicle_id) ?? 0) : 0),
+    0
+  );
   const totalCollected = (contracts ?? []).reduce((sum, c) => sum + (c.total_collected ?? 0), 0);
 
   const data = [

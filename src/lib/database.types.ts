@@ -196,6 +196,9 @@ export interface Database {
           warranty_notes: string | null;
           has_contract_file: boolean;
           insurance_claim_status: InsuranceClaimStatus;
+          purchase_price: number | null;
+          potential_sale_price: number | null;
+          sale_price: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -225,6 +228,9 @@ export interface Database {
           warranty_notes?: string | null;
           has_contract_file?: boolean;
           insurance_claim_status?: InsuranceClaimStatus;
+          purchase_price?: number | null;
+          potential_sale_price?: number | null;
+          sale_price?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -324,9 +330,6 @@ export interface Database {
           status: ContractStatus;
           payment_method: PaymentMethod;
           installment_amount: number | null;
-          purchase_price: number | null;
-          potential_sale_price: number | null;
-          sale_price: number | null;
           residual_value: number | null;
           total_collected: number;
           outstanding_balance: number;
@@ -352,9 +355,6 @@ export interface Database {
           status?: ContractStatus;
           payment_method?: PaymentMethod;
           installment_amount?: number | null;
-          purchase_price?: number | null;
-          potential_sale_price?: number | null;
-          sale_price?: number | null;
           residual_value?: number | null;
           total_collected?: number;
           outstanding_balance?: number;

@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Car, ClipboardList, DollarSign, FileText, Plus, Wrench } from "lucide-react";
+import { BadgeDollarSign, Car, ClipboardList, DollarSign, FileText, Plus, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -81,10 +81,13 @@ function toFormValues(vehicle?: VehicleWithRegistration): VehicleFormValues {
     warrantyActive: vehicle.warranty_active,
     warrantyNotes: vehicle.warranty_notes ?? undefined,
     hasContractFile: vehicle.has_contract_file,
+    purchasePrice: vehicle.purchase_price?.toString() ?? undefined,
+    potentialSalePrice: vehicle.potential_sale_price?.toString() ?? undefined,
+    salePrice: vehicle.sale_price?.toString() ?? undefined,
   };
 }
 
-type VehicleSection = "vehicle" | "service" | "compliance";
+type VehicleSection = "vehicle" | "service" | "compliance" | "financials";
 
 /** Which section each form field lives in (anything not listed is in Vehicle). */
 const FIELD_SECTION: Record<string, VehicleSection> = {
@@ -100,17 +103,23 @@ const FIELD_SECTION: Record<string, VehicleSection> = {
   hasSpareKey: "compliance",
   warrantyActive: "compliance",
   hasContractFile: "compliance",
+  purchasePrice: "financials",
+  potentialSalePrice: "financials",
+  salePrice: "financials",
 };
 
 export function VehiclePanel({
   vehicle,
   canManage = true,
+  showPrices = true,
   open: openProp,
   onOpenChange: onOpenChangeProp,
   onCreated,
 }: {
   vehicle?: VehicleWithRegistration;
   canManage?: boolean;
+  /** Purchase / potential sale / sale price inputs — hidden from Fleet Managers. */
+  showPrices?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   /** Called after a new vehicle is saved (not on edits), e.g. to select it in another form. */
@@ -186,6 +195,7 @@ export function VehiclePanel({
             { id: "vehicle", label: "Vehicle", icon: Car },
             { id: "service", label: "Service & Tracking", icon: Wrench },
             { id: "compliance", label: "Compliance", icon: ClipboardList },
+            { id: "financials", label: "Financials", icon: BadgeDollarSign },
             ...(isEditing
               ? [
                   { id: "transactions", label: "Transactions", icon: DollarSign },
@@ -517,6 +527,54 @@ export function VehiclePanel({
                     )}
                   />
                 </div>
+              </section>
+              </PanelModalSection>
+
+              <PanelModalSection id="financials" title="Financials">
+              <section className="grid gap-4 sm:grid-cols-2">
+                {showPrices && (
+                <FormField
+                  control={form.control}
+                  name="purchasePrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Purchase price</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                )}
+                {showPrices && (
+                <FormField
+                  control={form.control}
+                  name="potentialSalePrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Potential sale price</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                )}
+                <FormField
+                  control={form.control}
+                  name="salePrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sale price (if sold)</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </section>
               </PanelModalSection>
             </form>

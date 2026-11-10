@@ -158,6 +158,8 @@ export function MonthlyReportTable({
       })),
     ];
 
+    const exportRows = selectedRows.length > 0 ? selectedRows : filteredRows;
+
     exportToExcel({
       baseFilename: "payments-report",
       sheetName: "Payments",
@@ -169,14 +171,14 @@ export function MonthlyReportTable({
       ]),
       exportedBy,
       columns,
-      rows: filteredRows,
+      rows: exportRows,
       totals: showOutstanding
         ? {
             label: "Total outstanding",
             // Columns are Deal, Client, Reg, Total outstanding, months…
             labelColumn: 2,
             valueColumn: 3,
-            value: totalOutstanding,
+            value: exportRows.reduce((sum, r) => sum + (r.outstandingBalance ?? 0), 0),
             numberFormat: '"R"#,##0',
           }
         : undefined,
