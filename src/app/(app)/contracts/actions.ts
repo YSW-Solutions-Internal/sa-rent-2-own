@@ -55,6 +55,45 @@ async function generateStatementTag(
   return `${base}${n}`;
 }
 
+/** Auto-generated deal-number scheme per contract type: fixed prefix plus a
+ * fixed suffix letter (MAD numbers have always carried one — item 40 — the
+ * client wants new ones to always get "S", regardless of what suffix any
+ * existing MAD number happens to have). "other" has no scheme and keeps
+ * `deal_number` blank unless set by hand on the (edit-only) form field. */
+const DEAL_NUMBER_SCHEMES: Partial<Record<ContractFormValues["contractType"], { prefix: string; suffix: string }>> = {
+  rent_to_own: { prefix: "MAD", suffix: "S" },
+  short_term_rental: { prefix: "STR", suffix: "" },
+  rental: { prefix: "LTR", suffix: "" },
+};
+
+/** Next deal number for a new contract of this type: the largest existing
+ * number for the scheme's prefix (any trailing letter, any padding — same
+ * normalisation as the legacy MAD-number backfills), +1, zero-padded to 7
+ * digits (matching the existing MAD/STR convention), with the scheme's own
+ * fixed suffix appended. */
+async function generateDealNumber(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  contractType: ContractFormValues["contractType"]
+): Promise<string | null> {
+  const scheme = DEAL_NUMBER_SCHEMES[contractType];
+  if (!scheme) return null;
+
+  const { data: existing } = await supabase
+    .from("contracts")
+    .select("deal_number")
+    .ilike("deal_number", `${scheme.prefix}%`)
+    .limit(5000);
+
+  const pattern = new RegExp(`^${scheme.prefix}0*(\\d+)[A-Za-z]*$`, "i");
+  let max = 0;
+  for (const row of existing ?? []) {
+    const match = row.deal_number?.match(pattern);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+
+  return `${scheme.prefix}${String(max + 1).padStart(7, "0")}${scheme.suffix}`;
+}
+
 async function toContractRow(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   values: ContractFormValues
@@ -115,12 +154,25 @@ export async function createContract(raw: ContractFormValues): Promise<ActionRes
   if (!values.vehicleId) return { error: "Select a vehicle" };
 
   const supabase = await createSupabaseServerClient();
-  const row = await toContractRow(supabase, values);
-  const { data: contract, error } = await supabase
-    .from("contracts")
-    .insert(row)
-    .select("id")
-    .single();
+
+  // An auto-generated deal number can collide if two contracts of the same
+  // type are created at nearly the same moment (read-then-insert race on
+  // the unique index) -- recompute and retry rather than surface a
+  // confusing "that deal number is already used" error for a number the
+  // person never typed themselves. A manually-typed one gets one attempt,
+  // same as before.
+  const maxAttempts = values.dealNumber ? 1 : 3;
+  let contract: { id: string } | null = null;
+  let error: { code?: string; message: string } | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const dealNumber = values.dealNumber || (await generateDealNumber(supabase, values.contractType));
+    const row = await toContractRow(supabase, { ...values, dealNumber: dealNumber ?? undefined });
+    ({ data: contract, error } = await supabase.from("contracts").insert(row).select("id").single());
+
+    if (contract) break;
+    const isDealNumberCollision = error?.code === "23505" && error.message.includes("contracts_deal_number_key");
+    if (values.dealNumber || !isDealNumberCollision || attempt === maxAttempts) break;
+  }
 
   if (error || !contract) {
     return { error: friendlyInsertError(error ?? { message: "unknown" }) };

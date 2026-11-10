@@ -514,19 +514,21 @@ export function ContractPanel({
 
             <PanelModalSection id="billing" title="Billing">
             <section className="grid gap-4 sm:grid-cols-3">
-              <FormField
-                control={form.control}
-                name="dealNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Deal number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="MAD..." {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {isEditing && (
+                <FormField
+                  control={form.control}
+                  name="dealNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Deal number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="MAD..." {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="statementTag"
