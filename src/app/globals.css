@@ -119,3 +119,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* The inline-edit Undo toast's countdown bar (inline-edit-cell.tsx) —
+   shrinks left-to-right over the toast's visible duration via scaleX,
+   not width, so the browser can run it on the compositor instead of
+   repainting every frame. */
+@keyframes toast-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
