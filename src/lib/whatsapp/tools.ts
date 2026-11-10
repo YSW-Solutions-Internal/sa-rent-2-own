@@ -32,6 +32,12 @@ const ALL_STATUSES = [...FLEET_STATUSES, ...END_OF_CONTRACT_STATUSES] as const;
 
 const MAX_ROWS = 25;
 const MAX_MATCHES = 15;
+// PostgREST (supabase/config.toml's `max_rows`) silently caps any unranged
+// select at 1,000 rows — the exact gotcha payments/transactions-query.ts's
+// SHOW_ALL_CAP already works around. revenue_summary's fleet-wide queries
+// (thousands of payment_transactions rows, several hundred contracts) need
+// the same explicit ceiling or they'd quietly undercount.
+const REVENUE_ROWS_CAP = 10000;
 const SEARCH_STOPWORDS = new Set(["the", "a", "my", "car", "cars", "vehicle", "vehicles", "bakkie", "with", "for", "of", "and", "is", "where"]);
 
 const todayZA = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
@@ -296,14 +302,17 @@ async function revenueSummary(raw: unknown, ctx: ToolContext) {
     };
   }
 
-  let q = db.from("payment_transactions_detail").select("cash_effect, vehicle_id, reg, deal_number");
+  let q = db
+    .from("payment_transactions_detail")
+    .select("cash_effect, vehicle_id, reg, deal_number")
+    .range(0, REVENUE_ROWS_CAP - 1);
   if (input.date_from) q = q.gte("transaction_date", input.date_from);
   if (input.date_to) q = q.lte("transaction_date", input.date_to);
   const { data: txns } = await q;
   let rows = txns ?? [];
 
   if (input.contract_type || groupBy === "contract_type") {
-    const { data: contracts } = await db.from("contracts").select("deal_number, contract_type");
+    const { data: contracts } = await db.from("contracts").select("deal_number, contract_type").range(0, REVENUE_ROWS_CAP - 1);
     const typeByDeal = new Map((contracts ?? []).filter((c) => c.deal_number).map((c) => [c.deal_number as string, c.contract_type]));
     if (input.contract_type) {
       rows = rows.filter((r) => r.deal_number && typeByDeal.get(r.deal_number) === input.contract_type);
