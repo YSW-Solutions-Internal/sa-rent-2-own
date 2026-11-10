@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { canEdit, canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
-import type { PaymentMethod } from "@/lib/database.types";
+import type { ContractStatus, PaymentMethod } from "@/lib/database.types";
 import { vehicleStatusValues } from "./schema";
 
 import { VehiclesTable } from "./vehicles-table";
@@ -42,11 +42,22 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
     vehicle_id: string;
     client_id: string;
   }
+  // For Deal number / Contract status: the vehicle's most recent contract
+  // regardless of status (unlike the "current_" fields above, which are
+  // active-contract-only) - so a vehicle whose contract lapsed still shows
+  // its last deal number and that it's Cancelled/Defaulted/etc., not blank.
+  interface LatestContractRow {
+    vehicle_id: string | null;
+    deal_number: string | null;
+    status: ContractStatus;
+    start_date: string;
+    created_at: string;
+  }
 
   // None of these filter by the others' results (registrations/contracts/
   // clients are small tables fetched in full, not scoped by vehicle id), so
   // they all run in one wave instead of waiting on the vehicles query first.
-  const [{ data: vehicles }, { data: registrations }, { data: activeContracts }, { data: pastContracts }, { data: clients }] =
+  const [{ data: vehicles }, { data: registrations }, { data: activeContracts }, { data: pastContracts }, { data: clients }, { data: latestContracts }] =
     await Promise.all([
       supabase
         .from("vehicles")
@@ -69,6 +80,9 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
       canSeeContracts
         ? supabase.from("clients").select("id, full_name, cell_number, blacklisted")
         : Promise.resolve({ data: [] as { id: string; full_name: string; cell_number: string; blacklisted: boolean }[] }),
+      canSeeContracts
+        ? supabase.from("contracts").select("vehicle_id, deal_number, status, start_date, created_at").not("vehicle_id", "is", null)
+        : Promise.resolve({ data: [] as LatestContractRow[] }),
     ]);
 
   const clientById = new Map((clients ?? []).map((c) => [c.id, c]));
@@ -82,6 +96,15 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
     const names = pastClientNamesByVehicle.get(c.vehicle_id) ?? [];
     if (!names.includes(name)) names.push(name);
     pastClientNamesByVehicle.set(c.vehicle_id, names);
+  }
+
+  const latestContractByVehicle = new Map<string, LatestContractRow>();
+  for (const c of latestContracts ?? []) {
+    if (!c.vehicle_id) continue;
+    const current = latestContractByVehicle.get(c.vehicle_id);
+    if (!current || c.start_date > current.start_date || (c.start_date === current.start_date && c.created_at > current.created_at)) {
+      latestContractByVehicle.set(c.vehicle_id, c);
+    }
   }
 
   const rows: VehicleWithRegistration[] = (vehicles ?? []).map((v) => {
@@ -106,6 +129,8 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
       current_total_collected: activeContract?.total_collected ?? null,
       current_residual_value: activeContract?.residual_value ?? null,
       current_is_paid_up: activeContract?.is_paid_up ?? null,
+      current_deal_number: latestContractByVehicle.get(v.id)?.deal_number ?? null,
+      current_contract_status: latestContractByVehicle.get(v.id)?.status ?? null,
       past_client_names: pastClientNamesByVehicle.get(v.id)?.join(", ") ?? null,
     };
   });

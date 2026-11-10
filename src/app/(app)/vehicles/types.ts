@@ -1,4 +1,4 @@
-import type { PaymentMethod, TrackerStatus, VehicleStatus } from "@/lib/database.types";
+import type { ContractStatus, PaymentMethod, TrackerStatus, VehicleStatus } from "@/lib/database.types";
 
 export interface VehicleWithRegistration {
   id: string;
@@ -37,5 +37,11 @@ export interface VehicleWithRegistration {
   current_total_collected: number | null;
   current_residual_value: number | null;
   current_is_paid_up: boolean | null;
+  /** The vehicle's most recent contract, whatever its status (unlike the
+   * current_* fields above, which only ever reflect the active contract) —
+   * so a vehicle whose contract lapsed still shows its last deal number and
+   * that it's Cancelled/Defaulted/etc., not blank. */
+  current_deal_number: string | null;
+  current_contract_status: ContractStatus | null;
   past_client_names: string | null;
 }
