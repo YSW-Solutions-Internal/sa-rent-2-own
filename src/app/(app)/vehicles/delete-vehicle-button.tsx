@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,18 @@ import {
 
 import { deleteVehicle } from "./actions";
 
-export function DeleteVehicleButton({ vehicleId, label }: { vehicleId: string; label: string }) {
+/** Lives at the bottom of the Vehicle edit modal (not the table row — moved
+ * there so a vehicle can't be deleted without opening it first). Closes the
+ * modal itself via `onDeleted` once the vehicle is actually gone. */
+export function DeleteVehicleButton({
+  vehicleId,
+  label,
+  onDeleted,
+}: {
+  vehicleId: string;
+  label: string;
+  onDeleted: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -30,14 +40,15 @@ export function DeleteVehicleButton({ vehicleId, label }: { vehicleId: string; l
       }
       toast.success("Vehicle deleted");
       setOpen(false);
+      onDeleted();
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-6" aria-label="Delete vehicle">
-          <Trash2 className="text-destructive size-3" />
+        <Button type="button" variant="destructive">
+          Delete
         </Button>
       </DialogTrigger>
       <DialogContent>
