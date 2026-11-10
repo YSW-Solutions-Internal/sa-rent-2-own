@@ -55,13 +55,20 @@ export function InlineEditCell({
   // Saves `next`, showing a toast with an Undo button that writes `previous`
   // straight back — the client wanted a safety net for an accidental edit
   // (e.g. clearing a field) that's already autosaved by the time they notice.
-  function save(next: string, previous: string) {
+  // `isRevert` is true when this save *is* that Undo running: it skips
+  // showing another Undo toast on top (that chained forever — undoing the
+  // mistake kept re-arming itself as a new "mistake" to undo).
+  function save(next: string, previous: string, isRevert = false) {
     setPendingValue(next);
     startTransition(async () => {
       const result = await updateVehicleInlineField(vehicleId, field, next);
       setPendingValue(null);
       if (result.error) {
         toast.error(result.error);
+        return;
+      }
+      if (isRevert) {
+        toast.success(`${label} reverted`);
         return;
       }
       toast.custom(
@@ -73,7 +80,7 @@ export function InlineEditCell({
                 type="button"
                 onClick={() => {
                   toast.dismiss(id);
-                  save(previous, next);
+                  save(previous, next, true);
                 }}
                 className="shrink-0 rounded-md bg-destructive px-3 py-1 text-xs font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
               >
