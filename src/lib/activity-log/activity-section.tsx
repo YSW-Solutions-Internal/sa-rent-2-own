@@ -27,22 +27,28 @@ export function ActivitySection({ entityType, entityId }: { entityType: Activity
   const [isPending, startTransition] = useTransition();
 
   function load() {
-    getRecordActivity(entityType, entityId).then((result) => {
-      if (result.error) setError(result.error);
-      else {
-        setError(null);
-        setEntries(result.entries ?? []);
-      }
-    });
+    getRecordActivity(entityType, entityId)
+      .then((result) => {
+        if (result.error) setError(result.error);
+        else {
+          setError(null);
+          setEntries(result.entries ?? []);
+        }
+      })
+      .catch(() => setError("Couldn't load the activity log"));
   }
 
   useEffect(() => {
     let cancelled = false;
-    getRecordActivity(entityType, entityId).then((result) => {
-      if (cancelled) return;
-      if (result.error) setError(result.error);
-      else setEntries(result.entries ?? []);
-    });
+    getRecordActivity(entityType, entityId)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.error) setError(result.error);
+        else setEntries(result.entries ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Couldn't load the activity log");
+      });
     return () => {
       cancelled = true;
     };
@@ -52,7 +58,9 @@ export function ActivitySection({ entityType, entityId }: { entityType: Activity
     const text = draft.trim();
     if (!text) return;
     startTransition(async () => {
-      const result = await addRecordNote(entityType, entityId, text);
+      const result = await addRecordNote(entityType, entityId, text).catch(() => ({
+        error: "Couldn't save the note",
+      }));
       if (result.error) {
         toast.error(result.error);
         return;
