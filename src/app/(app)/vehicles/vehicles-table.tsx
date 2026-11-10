@@ -56,7 +56,6 @@ import type { ContractStatus, ContractType, PaymentMethod, TrackerStatus, Vehicl
 import { vehicleStatusValues } from "./schema";
 import { updateVehicleColour, updateVehicleStatus } from "./actions";
 import { InlineEditCell } from "./inline-edit-cell";
-import { DeleteVehicleButton } from "./delete-vehicle-button";
 import { VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
 import { VehiclePanel } from "./vehicle-panel";
 import { AddCostDialog } from "./add-cost-dialog";
@@ -844,7 +843,7 @@ const VehicleRow = memo(function VehicleRow({
         </TableCell>
       ))}
       {canManage && (
-        <TableCell className="sticky right-0 z-10 w-28 border-l bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
+        <TableCell className="sticky right-0 z-10 w-20 border-l bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
           <div className="flex items-center justify-end gap-1">
             <Button
               type="button"
@@ -867,7 +866,6 @@ const VehicleRow = memo(function VehicleRow({
             >
               <Pencil className="size-3" />
             </Button>
-            <DeleteVehicleButton vehicleId={vehicle.id} label={vehicle.current_plate ?? vehicle.file_no} />
           </div>
         </TableCell>
       )}
@@ -1360,7 +1358,7 @@ export function VehiclesTable({
                     />
                   ))}
                 </SortableContext>
-                {canManage && <TableHead className="sticky right-0 z-20 w-28 border-l bg-muted" />}
+                {canManage && <TableHead className="sticky right-0 z-20 w-20 border-l bg-muted" />}
               </TableRow>
             </TableHeader>
             <TableBody>

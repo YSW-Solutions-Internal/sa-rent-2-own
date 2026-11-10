@@ -38,6 +38,7 @@ import { useControllableOpen } from "@/lib/use-controllable-open";
 import { VEHICLE_STATUS_LABELS as STATUS_LABELS } from "@/lib/vehicle-status";
 
 import { createVehicle, updateVehicle } from "./actions";
+import { DeleteVehicleButton } from "./delete-vehicle-button";
 import {
   trackerStatusValues,
   vehicleFormSchema,
@@ -592,9 +593,20 @@ export function VehiclePanel({
           )}
         </PanelModalSections>
         <PanelModalFooter>
-          <Button type="submit" form="vehicle-form" disabled={isPending}>
-            {isPending ? "Saving…" : "Save"}
-          </Button>
+          <div className="flex w-full items-center justify-between">
+            {isEditing ? (
+              <DeleteVehicleButton
+                vehicleId={vehicle!.id}
+                label={vehicle!.current_plate ?? vehicle!.file_no}
+                onDeleted={() => setOpen(false)}
+              />
+            ) : (
+              <span />
+            )}
+            <Button type="submit" form="vehicle-form" disabled={isPending}>
+              {isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
         </PanelModalFooter>
       </PanelModalContent>
     </Dialog>
