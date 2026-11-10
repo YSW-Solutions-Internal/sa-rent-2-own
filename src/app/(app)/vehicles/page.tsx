@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { canEdit, canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
-import type { ContractStatus, PaymentMethod } from "@/lib/database.types";
+import type { ContractStatus, ContractType, PaymentMethod } from "@/lib/database.types";
 import { vehicleStatusValues } from "./schema";
 
 import { VehiclesTable } from "./vehicles-table";
@@ -42,14 +42,16 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
     vehicle_id: string;
     client_id: string;
   }
-  // For Deal number / Contract status: the vehicle's most recent contract
-  // regardless of status (unlike the "current_" fields above, which are
-  // active-contract-only) - so a vehicle whose contract lapsed still shows
-  // its last deal number and that it's Cancelled/Defaulted/etc., not blank.
+  // For Deal number / Contract status / Contract type: the vehicle's most
+  // recent contract regardless of status (unlike the "current_" fields
+  // above, which are active-contract-only) - so a vehicle whose contract
+  // lapsed still shows its last deal number and that it's
+  // Cancelled/Defaulted/etc., not blank.
   interface LatestContractRow {
     vehicle_id: string | null;
     deal_number: string | null;
     status: ContractStatus;
+    contract_type: ContractType;
     start_date: string;
     created_at: string;
   }
@@ -81,7 +83,10 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
         ? supabase.from("clients").select("id, full_name, cell_number, blacklisted")
         : Promise.resolve({ data: [] as { id: string; full_name: string; cell_number: string; blacklisted: boolean }[] }),
       canSeeContracts
-        ? supabase.from("contracts").select("vehicle_id, deal_number, status, start_date, created_at").not("vehicle_id", "is", null)
+        ? supabase
+            .from("contracts")
+            .select("vehicle_id, deal_number, status, contract_type, start_date, created_at")
+            .not("vehicle_id", "is", null)
         : Promise.resolve({ data: [] as LatestContractRow[] }),
     ]);
 
@@ -131,6 +136,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
       current_is_paid_up: activeContract?.is_paid_up ?? null,
       current_deal_number: latestContractByVehicle.get(v.id)?.deal_number ?? null,
       current_contract_status: latestContractByVehicle.get(v.id)?.status ?? null,
+      current_contract_type: latestContractByVehicle.get(v.id)?.contract_type ?? null,
       past_client_names: pastClientNamesByVehicle.get(v.id)?.join(", ") ?? null,
     };
   });
