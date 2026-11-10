@@ -27,7 +27,19 @@ from (
 ) c
 where v.id = c.vehicle_id;
 
+-- vehicle_current_contract is `select *` from contracts, so it depends on
+-- every column by name at the catalog level even though it never mentions
+-- these three — drop and recreate it around the column drop (a plain
+-- `create or replace view` can only append columns, never remove them).
+drop view public.vehicle_current_contract;
+
 alter table public.contracts
   drop column purchase_price,
   drop column potential_sale_price,
   drop column sale_price;
+
+create or replace view public.vehicle_current_contract
+  with (security_invoker = true) as
+select *
+from public.contracts
+where status = 'active';
