@@ -8,6 +8,8 @@ import type { UserRole } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { END_OF_CONTRACT_STATUSES, FLEET_STATUSES } from "@/lib/vehicle-status";
 
+import { clean, round2 } from "./format";
+
 /**
  * Read-only fleet queries for the WhatsApp bot. These run with the service
  * role (no RLS), so every function here is the permission boundary: explicit
@@ -25,8 +27,6 @@ export interface ToolContext {
    * info (the base `whatsapp_enabled` tier) never needs this. */
   financeEnabled: boolean;
 }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const ALL_STATUSES = [...FLEET_STATUSES, ...END_OF_CONTRACT_STATUSES] as const;
 
@@ -46,9 +46,6 @@ const addDays = (iso: string, days: number) => {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
-
-/** Letters/digits (and spaces) only, so user text can never reach a filter string. */
-const clean = (s: string) => s.replace(/[^A-Za-z0-9 ]/g, "").trim();
 
 const VEHICLE_COLUMNS =
   "id, file_no, make, model, year, colour, status, legacy_status_note, current_mileage, next_service_km, next_service_date, license_disc_expiry";
