@@ -63,7 +63,9 @@ export function InlineEditCell({
       }
       toast(`${label} updated`, {
         duration: 8000,
+        position: "bottom-right",
         action: { label: "Undo", onClick: () => save(previous, next) },
+        classNames: { actionButton: "!bg-destructive !text-destructive-foreground hover:!bg-destructive/90" },
       });
     });
   }

@@ -529,23 +529,25 @@ export function ContractPanel({
                   )}
                 />
               )}
-              <FormField
-                control={form.control}
-                name="statementTag"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Statement tag</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Auto-generated from surname if left blank"
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {isEditing && (
+                <FormField
+                  control={form.control}
+                  name="statementTag"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Statement tag</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Auto-generated from surname if left blank"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="billingStatus"
