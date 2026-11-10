@@ -19,6 +19,7 @@ export const editStaffFormSchema = z.object({
   phone: z.string().min(1, "Cell number is required"),
   role: z.enum(["admin", "manager", "technician"]),
   whatsappEnabled: z.boolean(),
+  whatsappFinanceEnabled: z.boolean(),
 });
 
 export type EditStaffFormValues = z.infer<typeof editStaffFormSchema>;

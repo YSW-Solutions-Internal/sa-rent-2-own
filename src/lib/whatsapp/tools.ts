@@ -2,7 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
-import { canSeeFinancials, canViewContracts } from "@/lib/auth/permissions";
+import { contractTypeValues } from "@/app/(app)/contracts/schema";
+import { canViewContracts } from "@/lib/auth/permissions";
 import type { UserRole } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { END_OF_CONTRACT_STATUSES, FLEET_STATUSES } from "@/lib/vehicle-status";
@@ -10,13 +11,21 @@ import { END_OF_CONTRACT_STATUSES, FLEET_STATUSES } from "@/lib/vehicle-status";
 /**
  * Read-only fleet queries for the WhatsApp bot. These run with the service
  * role (no RLS), so every function here is the permission boundary: explicit
- * column lists, and role checks via the same helpers the pages use. Never
- * selected, whatever the role: ID numbers, cell numbers, banking details,
- * purchase / potential sale prices.
+ * column lists, and role/permission checks via the same helpers the pages
+ * use (plus `ctx.financeEnabled`, a per-number permission separate from
+ * role — see `whatsapp_finance_enabled`). Never selected, for anyone, under
+ * any permission: ID numbers, cell numbers, banking details, purchase /
+ * potential sale prices.
  */
 export interface ToolContext {
   role: UserRole;
+  /** Per-number permission (Admin → Users), independent of role: gates
+   * payments/revenue/transaction tools and figures. Contract and vehicle
+   * info (the base `whatsapp_enabled` tier) never needs this. */
+  financeEnabled: boolean;
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const ALL_STATUSES = [...FLEET_STATUSES, ...END_OF_CONTRACT_STATUSES] as const;
 
@@ -86,8 +95,10 @@ async function describeVehicles(vehicles: VehicleRow[], ctx: ToolContext) {
         deal_number: c.deal_number,
         contract_end_date: c.end_date,
         installment_rand: c.installment_amount,
-        // Outstanding balances are admin-only in the app, so they are here.
-        ...(canSeeFinancials(ctx.role) ? { outstanding_balance_rand: c.outstanding_balance } : {}),
+        // Money figures go through the WhatsApp-specific finance permission,
+        // not the web app's role-based canSeeFinancials — an admin's role
+        // doesn't itself unlock finance on WhatsApp.
+        ...(ctx.financeEnabled ? { outstanding_balance_rand: c.outstanding_balance } : {}),
       });
     }
   }
@@ -107,14 +118,18 @@ async function describeVehicles(vehicles: VehicleRow[], ctx: ToolContext) {
   }));
 }
 
-const findVehicleInput = z.object({ query: z.string().min(2).max(60) });
-
-async function findVehicle(raw: unknown, ctx: ToolContext) {
-  const { query } = findVehicleInput.parse(raw);
+/**
+ * Shared vehicle-matching logic behind find_vehicle, vehicle_costs and
+ * vehicle_revenue: registration/file no/client name/description -> matching
+ * VehicleRow[], fleet vehicles ranked before ended ones. Factored out of the
+ * old find_vehicle so every tool that takes "a vehicle" resolves it the
+ * same way.
+ */
+async function resolveVehicles(query: string, ctx: ToolContext): Promise<VehicleRow[]> {
   const db = createAdminClient();
   const text = clean(query);
   const compact = text.replace(/ /g, "").toUpperCase();
-  if (compact.length < 2) return { error: "Query too short" };
+  if (compact.length < 2) return [];
 
   const ids = new Set<string>();
 
@@ -159,39 +174,225 @@ async function findVehicle(raw: unknown, ctx: ToolContext) {
     for (const r of byDescription ?? []) ids.add(r.id);
   }
 
-  if (ids.size === 0) {
-    return { matches: [], note: "No vehicle matched. Ask for the registration, file number, or make/model/colour/year." };
-  }
+  if (ids.size === 0) return [];
 
   const { data: vehicles } = await db.from("vehicles").select(VEHICLE_COLUMNS).in("id", [...ids].slice(0, 60));
   // Fleet vehicles before sold / written-off / ended ones.
   const rank = (status: string) => ((FLEET_STATUSES as readonly string[]).includes(status) ? 0 : 1);
-  const sorted = (vehicles ?? []).sort((a, b) => rank(a.status) - rank(b.status) || a.file_no.localeCompare(b.file_no));
-  const described = await describeVehicles(sorted, ctx);
+  return (vehicles ?? []).sort((a, b) => rank(a.status) - rank(b.status) || a.file_no.localeCompare(b.file_no));
+}
 
-  if (described.length === 1) return { matches: described };
+/**
+ * resolveVehicles() plus the "which one?" disambiguation shape every
+ * single-vehicle tool (find_vehicle, vehicle_costs, vehicle_revenue) needs
+ * when it matches none or several. Returns the one VehicleRow on a clean
+ * match, or the tool result to hand straight back otherwise.
+ */
+async function pickVehicle(query: string, ctx: ToolContext): Promise<{ vehicle: VehicleRow } | { result: unknown }> {
+  const sorted = await resolveVehicles(query, ctx);
+  if (sorted.length === 0) {
+    return { result: { matches: [], note: "No vehicle matched. Ask for the registration, file number, or make/model/colour/year." } };
+  }
+  if (sorted.length === 1) return { vehicle: sorted[0] };
 
   // Several cars: a short list to choose from, not full details.
+  const described = await describeVehicles(sorted, ctx);
   return {
-    multiple_matches: true,
-    total: described.length,
-    shown: Math.min(described.length, MAX_MATCHES),
-    instruction:
-      "More than one vehicle matched. Show this list (registration, file number, year make model, colour, status, current client if given) and ask which one they want details about. Do not give full details yet. Once they pick one, call find_vehicle with its registration.",
-    matches: described.slice(0, MAX_MATCHES).map((v) => ({
-      registration: v.registration,
-      file_no: v.file_no,
-      vehicle: v.vehicle,
-      colour: v.colour,
-      status: v.status,
-      ...("current_contract" in v
-        ? {
-            current_client: (v.current_contract as { client?: string | null } | null)?.client ?? null,
-            ...((v.current_contract as { client_blacklisted?: boolean } | null)?.client_blacklisted
-              ? { client_blacklisted: true }
-              : {}),
-          }
-        : {}),
+    result: {
+      multiple_matches: true,
+      total: described.length,
+      shown: Math.min(described.length, MAX_MATCHES),
+      instruction:
+        "More than one vehicle matched. Show this list (registration, file number, year make model, colour, status, current client if given) and ask which one they want details about. Do not give full details yet. Once they pick one, call the same tool again with its registration.",
+      matches: described.slice(0, MAX_MATCHES).map((v) => ({
+        registration: v.registration,
+        file_no: v.file_no,
+        vehicle: v.vehicle,
+        colour: v.colour,
+        status: v.status,
+        ...("current_contract" in v
+          ? {
+              current_client: (v.current_contract as { client?: string | null } | null)?.client ?? null,
+              ...((v.current_contract as { client_blacklisted?: boolean } | null)?.client_blacklisted
+                ? { client_blacklisted: true }
+                : {}),
+            }
+          : {}),
+      })),
+    },
+  };
+}
+
+const findVehicleInput = z.object({ query: z.string().min(2).max(60) });
+
+async function findVehicle(raw: unknown, ctx: ToolContext) {
+  const { query } = findVehicleInput.parse(raw);
+  const picked = await pickVehicle(query, ctx);
+  if ("result" in picked) return picked.result;
+  return { matches: await describeVehicles([picked.vehicle], ctx) };
+}
+
+const vehicleCostsInput = z.object({ query: z.string().min(2).max(60), limit: z.number().int().min(1).max(25).optional() });
+
+async function vehicleCosts(raw: unknown, ctx: ToolContext) {
+  const { query, limit } = vehicleCostsInput.parse(raw);
+  const picked = await pickVehicle(query, ctx);
+  if ("result" in picked) return picked.result;
+
+  const [described] = await describeVehicles([picked.vehicle], ctx);
+  const db = createAdminClient();
+  const { data: costs } = await db
+    .from("vehicle_costs")
+    .select("cost_type, cost_date, amount, supplier, work_done, mileage_at_time")
+    .eq("vehicle_id", picked.vehicle.id)
+    .order("cost_date", { ascending: false })
+    .limit(limit ?? 15);
+
+  return {
+    vehicle: { registration: described.registration, file_no: described.file_no },
+    shown: costs?.length ?? 0,
+    total_shown_rand: round2((costs ?? []).reduce((sum, c) => sum + c.amount, 0)),
+    note: "The total only covers the rows shown (most recent first) — ask for more rows if the vehicle has a longer history.",
+    costs: (costs ?? []).map((c) => ({
+      date: c.cost_date,
+      type: c.cost_type,
+      amount_rand: c.amount,
+      supplier: c.supplier,
+      work_done: c.work_done,
+      mileage_km: c.mileage_at_time,
+    })),
+  };
+}
+
+const revenueSummaryInput = z.object({
+  group_by: z.enum(["vehicle", "contract_type", "month"]).optional(),
+  date_from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  date_to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  contract_type: z.enum(contractTypeValues).optional(),
+  limit: z.number().int().min(1).max(25).optional(),
+});
+
+async function revenueSummary(raw: unknown, ctx: ToolContext) {
+  if (!ctx.financeEnabled) return { error: "Not permitted for this user" };
+  const input = revenueSummaryInput.parse(raw);
+  const groupBy = input.group_by ?? "vehicle";
+  const db = createAdminClient();
+  const period = { from: input.date_from ?? "all time", to: input.date_to ?? "today" };
+
+  if (groupBy === "month") {
+    let q = db.from("payment_monthly_totals").select("month, collected, reversed, net").order("month");
+    if (input.date_from) q = q.gte("month", `${input.date_from.slice(0, 7)}-01`);
+    if (input.date_to) q = q.lte("month", input.date_to);
+    const { data } = await q;
+    return {
+      months: (data ?? []).map((m) => ({ month: m.month, collected_rand: m.collected, reversed_rand: m.reversed, net_rand: m.net })),
+    };
+  }
+
+  let q = db.from("payment_transactions_detail").select("cash_effect, vehicle_id, reg, deal_number");
+  if (input.date_from) q = q.gte("transaction_date", input.date_from);
+  if (input.date_to) q = q.lte("transaction_date", input.date_to);
+  const { data: txns } = await q;
+  let rows = txns ?? [];
+
+  if (input.contract_type || groupBy === "contract_type") {
+    const { data: contracts } = await db.from("contracts").select("deal_number, contract_type");
+    const typeByDeal = new Map((contracts ?? []).filter((c) => c.deal_number).map((c) => [c.deal_number as string, c.contract_type]));
+    if (input.contract_type) {
+      rows = rows.filter((r) => r.deal_number && typeByDeal.get(r.deal_number) === input.contract_type);
+    }
+    if (groupBy === "contract_type") {
+      const byType = new Map<string, { net: number; vehicles: Set<string>; count: number }>();
+      for (const r of rows) {
+        const type = (r.deal_number && typeByDeal.get(r.deal_number)) || "unknown";
+        const entry = byType.get(type) ?? { net: 0, vehicles: new Set<string>(), count: 0 };
+        entry.net += r.cash_effect;
+        entry.count += 1;
+        if (r.vehicle_id) entry.vehicles.add(r.vehicle_id);
+        byType.set(type, entry);
+      }
+      return {
+        period,
+        by_contract_type: [...byType.entries()].map(([type, v]) => ({
+          contract_type: type,
+          total_net_collected_rand: round2(v.net),
+          vehicle_count: v.vehicles.size,
+          average_net_per_vehicle_rand: v.vehicles.size ? round2(v.net / v.vehicles.size) : 0,
+          transaction_count: v.count,
+        })),
+      };
+    }
+  }
+
+  // groupBy === "vehicle"
+  const byVehicle = new Map<string, { reg: string | null; dealNumbers: Set<string>; net: number; count: number }>();
+  for (const r of rows) {
+    if (!r.vehicle_id) continue;
+    const entry = byVehicle.get(r.vehicle_id) ?? { reg: r.reg, dealNumbers: new Set<string>(), net: 0, count: 0 };
+    if (r.deal_number) entry.dealNumbers.add(r.deal_number);
+    entry.net += r.cash_effect;
+    entry.count += 1;
+    byVehicle.set(r.vehicle_id, entry);
+  }
+  const vehicles = [...byVehicle.values()];
+  const totalNet = vehicles.reduce((sum, v) => sum + v.net, 0);
+  const limit = input.limit ?? 10;
+  return {
+    period,
+    vehicles_with_activity: vehicles.length,
+    total_net_collected_rand: round2(totalNet),
+    average_net_per_vehicle_rand: vehicles.length ? round2(totalNet / vehicles.length) : 0,
+    top_vehicles: vehicles
+      .sort((a, b) => b.net - a.net)
+      .slice(0, limit)
+      .map((v) => ({
+        registration: v.reg,
+        deal_numbers: [...v.dealNumbers].join(", ") || null,
+        net_collected_rand: round2(v.net),
+        transaction_count: v.count,
+      })),
+  };
+}
+
+const vehicleRevenueInput = z.object({ query: z.string().min(2).max(60) });
+
+async function vehicleRevenue(raw: unknown, ctx: ToolContext) {
+  if (!ctx.financeEnabled) return { error: "Not permitted for this user" };
+  const { query } = vehicleRevenueInput.parse(raw);
+  const picked = await pickVehicle(query, ctx);
+  if ("result" in picked) return picked.result;
+
+  const [described] = await describeVehicles([picked.vehicle], ctx);
+  const db = createAdminClient();
+  const { data: txns } = await db
+    .from("payment_transactions_detail")
+    .select("transaction_date, type, cash_effect, deal_number")
+    .eq("vehicle_id", picked.vehicle.id)
+    .order("transaction_date", { ascending: false });
+  const all = txns ?? [];
+
+  const { data: contracts } = await db
+    .from("contracts")
+    .select("outstanding_balance, arrears_amount")
+    .eq("vehicle_id", picked.vehicle.id);
+
+  return {
+    vehicle: { registration: described.registration, file_no: described.file_no },
+    lifetime_net_collected_rand: round2(all.reduce((sum, t) => sum + t.cash_effect, 0)),
+    transaction_count: all.length,
+    outstanding_balance_rand: round2((contracts ?? []).reduce((sum, c) => sum + (c.outstanding_balance ?? 0), 0)),
+    arrears_rand: round2((contracts ?? []).reduce((sum, c) => sum + (c.arrears_amount ?? 0), 0)),
+    recent_transactions: all.slice(0, 8).map((t) => ({
+      date: t.transaction_date,
+      type: t.type,
+      amount_rand: t.cash_effect,
+      deal_number: t.deal_number,
     })),
   };
 }
@@ -300,6 +501,50 @@ export const TOOLS = [
       additionalProperties: false,
     },
     run: listVehicles,
+  },
+  {
+    name: "vehicle_costs",
+    description:
+      "Service/repair/maintenance cost history for one vehicle (what was spent on it, when, by whom, at what mileage) — this is spend on the vehicle, not client payments or revenue; use revenue_summary/vehicle_revenue for those. Look up by registration, file number, client name, or make/model/colour/year. Returns the most recent cost rows first and their total.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Registration, file number, client name, or make/model/colour/year words" },
+        limit: { type: "integer", minimum: 1, maximum: 25, description: "How many cost rows to return, most recent first (default 15)" },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    run: vehicleCosts,
+  },
+  {
+    name: "revenue_summary",
+    description:
+      'Income/revenue across contracts — net collected (receipts minus reversals) from client payments. Use for questions like "average income per car", "revenue by contract type", "income last 3 months". group_by: "vehicle" (default — ranked list plus the average per vehicle), "contract_type", or "month" (fleet-wide trend, no vehicle breakdown). Optional date_from/date_to (YYYY-MM-DD, inclusive) and a contract_type filter (ignored when group_by is "month"). Requires finance permission.',
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        group_by: { type: "string", enum: ["vehicle", "contract_type", "month"] },
+        date_from: { type: "string", description: "YYYY-MM-DD, inclusive" },
+        date_to: { type: "string", description: "YYYY-MM-DD, inclusive" },
+        contract_type: { type: "string", enum: [...contractTypeValues] },
+        limit: { type: "integer", minimum: 1, maximum: 25, description: 'Max vehicles returned when group_by is "vehicle" (default 10)' },
+      },
+      additionalProperties: false,
+    },
+    run: revenueSummary,
+  },
+  {
+    name: "vehicle_revenue",
+    description:
+      "One vehicle's lifetime payment picture: net collected across every contract it's ever been on, current outstanding balance and arrears, and its most recent transactions. Look up by registration, file number, client name, or make/model/colour/year. Requires finance permission.",
+    input_schema: {
+      type: "object" as const,
+      properties: { query: { type: "string", description: "Registration, file number, client name, or make/model/colour/year words" } },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    run: vehicleRevenue,
   },
 ];
 

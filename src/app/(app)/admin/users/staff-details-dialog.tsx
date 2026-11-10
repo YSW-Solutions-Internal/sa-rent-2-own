@@ -45,6 +45,7 @@ export interface StaffMember {
   role: UserRole;
   is_active: boolean;
   whatsapp_enabled: boolean;
+  whatsapp_finance_enabled: boolean;
 }
 
 function formatWhen(iso: string): string {
@@ -109,6 +110,7 @@ export function StaffDetailsDialog({
       phone: formatSaPhoneForDisplay(member.phone),
       role: member.role,
       whatsappEnabled: member.whatsapp_enabled,
+      whatsappFinanceEnabled: member.whatsapp_finance_enabled,
     },
   });
 
@@ -120,11 +122,13 @@ export function StaffDetailsDialog({
         phone: formatSaPhoneForDisplay(member.phone),
         role: member.role,
         whatsappEnabled: member.whatsapp_enabled,
+        whatsappFinanceEnabled: member.whatsapp_finance_enabled,
       });
     }
   }, [open, member, form]);
 
   const role = useWatch({ control: form.control, name: "role" });
+  const whatsappEnabled = useWatch({ control: form.control, name: "whatsappEnabled" });
   const roles: UserRole[] = member.role === "technician" ? ["technician", ...ASSIGNABLE_ROLES] : [...ASSIGNABLE_ROLES];
 
   function onSubmit(values: EditStaffFormValues) {
@@ -243,6 +247,24 @@ export function StaffDetailsDialog({
                         />
                       </FormControl>
                       <FormLabel className="font-normal">Allowed to use the WhatsApp bot</FormLabel>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="whatsappFinanceEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center gap-2 pl-6">
+                      <FormControl>
+                        <Checkbox
+                          checked={role !== "technician" && whatsappEnabled && field.value}
+                          onCheckedChange={(checked) => field.onChange(checked === true)}
+                          disabled={role === "technician" || !whatsappEnabled}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">
+                        Also allowed to ask about payments, revenue and transactions
+                      </FormLabel>
                     </FormItem>
                   )}
                 />
