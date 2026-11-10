@@ -49,18 +49,31 @@ export function InlineEditCell({
     setEditing(true);
   }
 
-  function finish(save: boolean) {
+  // Saves `next`, showing a toast with an Undo button that writes `previous`
+  // straight back — the client wanted a safety net for an accidental edit
+  // (e.g. clearing a field) that's already autosaved by the time they notice.
+  function save(next: string, previous: string) {
+    setPendingValue(next);
+    startTransition(async () => {
+      const result = await updateVehicleInlineField(vehicleId, field, next);
+      setPendingValue(null);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast(`${label} updated`, {
+        duration: 8000,
+        action: { label: "Undo", onClick: () => save(previous, next) },
+      });
+    });
+  }
+
+  function finish(shouldSave: boolean) {
     if (done.current) return;
     done.current = true;
     setEditing(false);
-    if (!save || draft === current) return;
-
-    setPendingValue(draft);
-    startTransition(async () => {
-      const result = await updateVehicleInlineField(vehicleId, field, draft);
-      if (result.error) toast.error(result.error);
-      setPendingValue(null);
-    });
+    if (!shouldSave || draft === current) return;
+    save(draft, current);
   }
 
   if (editing) {
@@ -74,6 +87,7 @@ export function InlineEditCell({
         value={draft}
         aria-label={label}
         onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.target.select()}
         onBlur={() => finish(true)}
         onKeyDown={(e) => {
           if (e.key === "Enter") finish(true);
