@@ -34,6 +34,7 @@ import { daysUntil, formatDayCount, formatDisplayDate, isoDaysFromNow } from "@/
 import { dueDateColorScale, dueDateExcelChip } from "@/lib/due-date-color";
 import type { ExportColumn } from "@/lib/export-to-excel";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnResize } from "@/lib/use-column-resize";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
 import {
   FLEET_STATUSES,
@@ -987,11 +988,12 @@ export function VehiclesTable({
     });
   }
 
-  const { order, isHidden, reorder, toggleHidden, reset } = useColumnOrder(
+  const { order, isHidden, reorder, toggleHidden, reset, widths, setWidths, commitWidths } = useColumnOrder(
     "sar2o:vehicles-columns",
     DEFAULT_COLUMN_ORDER,
     DEFAULT_HIDDEN_COLUMNS
   );
+  const { headerRowRef, startResize } = useColumnResize(widths, setWidths, commitWidths);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1332,9 +1334,9 @@ export function VehiclesTable({
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <Table containerClassName="overflow-x-visible">
+          <Table containerClassName="overflow-x-visible" className={Object.keys(widths).length > 0 ? "table-fixed" : undefined}>
             <TableHeader className="bg-background sticky top-0 z-20">
-              <TableRow>
+              <TableRow ref={headerRowRef}>
                 <TableHead className="sticky left-0 z-20 w-20 border-r bg-muted">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -1355,6 +1357,8 @@ export function VehiclesTable({
                       activeKey={sortKey}
                       direction={sortDir}
                       onSort={onSort}
+                      width={widths[column]}
+                      onResizeStart={startResize(column)}
                     />
                   ))}
                 </SortableContext>

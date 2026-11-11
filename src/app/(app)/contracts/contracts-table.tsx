@@ -24,6 +24,8 @@ import type { ExportColumn } from "@/lib/export-to-excel";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
 import { useRowSelection } from "@/lib/use-row-selection";
 import { compareNumbers, compareStrings, useTableControls } from "@/lib/use-table-controls";
+import { useColumnWidths } from "@/lib/use-column-widths";
+import { useColumnResize } from "@/lib/use-column-resize";
 import type { ContractStatus, ContractType } from "@/lib/database.types";
 
 import { contractStatusValues } from "./schema";
@@ -154,6 +156,9 @@ export function ContractsTable({
     defaultSortKey: "endDate",
   });
 
+  const { widths, setWidths, commitWidths } = useColumnWidths("sar2o:contracts-columns");
+  const { headerRowRef, startResize } = useColumnResize(widths, setWidths, commitWidths);
+
   const {
     selectedIds,
     selectedRows,
@@ -282,9 +287,9 @@ export function ContractsTable({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
-        <Table containerClassName="overflow-x-visible">
+        <Table containerClassName="overflow-x-visible" className={Object.keys(widths).length > 0 ? "table-fixed" : undefined}>
           <TableHeader className="bg-background sticky top-0 z-20">
-            <TableRow>
+            <TableRow ref={headerRowRef}>
               <TableHead className="sticky left-0 z-20 w-20 border-r bg-muted">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -295,25 +300,77 @@ export function ContractsTable({
                   <span className="text-muted-foreground flex-1 text-center">#</span>
                 </div>
               </TableHead>
-              <SortableHead label="Deal number" sortKey="deal" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-              <SortableHead label="Vehicle" sortKey="vehicle" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-              <SortableHead label="Client" sortKey="client" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-              <SortableHead label="Type" sortKey="type" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-              <SortableHead label="Status" sortKey="status" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+              <SortableHead
+                label="Deal number"
+                sortKey="deal"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.deal}
+                onResizeStart={startResize("deal")}
+              />
+              <SortableHead
+                label="Vehicle"
+                sortKey="vehicle"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.vehicle}
+                onResizeStart={startResize("vehicle")}
+              />
+              <SortableHead
+                label="Client"
+                sortKey="client"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.client}
+                onResizeStart={startResize("client")}
+              />
+              <SortableHead
+                label="Type"
+                sortKey="type"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.type}
+                onResizeStart={startResize("type")}
+              />
+              <SortableHead
+                label="Status"
+                sortKey="status"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.status}
+                onResizeStart={startResize("status")}
+              />
               <SortableHead
                 label="Installment"
                 sortKey="installment"
                 activeKey={sortKey}
                 direction={sortDir}
                 onSort={onSort}
+                width={widths.installment}
+                onResizeStart={startResize("installment")}
               />
-              <SortableHead label="Arrears" sortKey="arrears" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+              <SortableHead
+                label="Arrears"
+                sortKey="arrears"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.arrears}
+                onResizeStart={startResize("arrears")}
+              />
               <SortableHead
                 label="End date"
                 sortKey="endDate"
                 activeKey={sortKey}
                 direction={sortDir}
                 onSort={onSort}
+                width={widths.endDate}
+                onResizeStart={startResize("endDate")}
               />
               <TableHead className="w-24" />
             </TableRow>

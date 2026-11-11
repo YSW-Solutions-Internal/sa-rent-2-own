@@ -9,6 +9,8 @@ import { SortableHead } from "@/components/ui/sortable-head";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDisplayDate } from "@/lib/date-ranges";
 import { compareNumbers, compareStrings, useTableControls } from "@/lib/use-table-controls";
+import { useColumnWidths } from "@/lib/use-column-widths";
+import { useColumnResize } from "@/lib/use-column-resize";
 
 import type { ContractPaymentSummaryRow } from "./types";
 
@@ -51,6 +53,9 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
     storageKey: "payments-table-sort",
   });
 
+  const { widths, setWidths, commitWidths } = useColumnWidths("sar2o:payments-columns");
+  const { headerRowRef, startResize } = useColumnResize(widths, setWidths, commitWidths);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <Input
@@ -60,19 +65,37 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
         className="bg-background max-w-xs"
       />
       <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-        <Table containerClassName="overflow-x-visible">
+        <Table containerClassName="overflow-x-visible" className={Object.keys(widths).length > 0 ? "table-fixed" : undefined}>
           <TableHeader className="bg-background sticky top-0 z-10">
-            <TableRow>
-              <SortableHead label="Deal number" sortKey="deal" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-              <SortableHead label="Client" sortKey="client" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+            <TableRow ref={headerRowRef}>
+              <SortableHead
+                label="Deal number"
+                sortKey="deal"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.deal}
+                onResizeStart={startResize("deal")}
+              />
+              <SortableHead
+                label="Client"
+                sortKey="client"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.client}
+                onResizeStart={startResize("client")}
+              />
               <SortableHead
                 label="Last transaction"
                 sortKey="lastDate"
                 activeKey={sortKey}
                 direction={sortDir}
                 onSort={onSort}
+                width={widths.lastDate}
+                onResizeStart={startResize("lastDate")}
               />
-              <TableHead>Status</TableHead>
+              <TableHead data-column-id="status">Status</TableHead>
               <SortableHead
                 label="Net collected"
                 sortKey="netCollected"
@@ -80,6 +103,8 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
                 direction={sortDir}
                 onSort={onSort}
                 className="text-right"
+                width={widths.netCollected}
+                onResizeStart={startResize("netCollected")}
               />
               <SortableHead
                 label="Reversals"
@@ -88,6 +113,8 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
                 direction={sortDir}
                 onSort={onSort}
                 className="text-right"
+                width={widths.reversals}
+                onResizeStart={startResize("reversals")}
               />
               <SortableHead
                 label="Outstanding"
@@ -96,6 +123,8 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
                 direction={sortDir}
                 onSort={onSort}
                 className="text-right"
+                width={widths.outstanding}
+                onResizeStart={startResize("outstanding")}
               />
             </TableRow>
           </TableHeader>

@@ -25,6 +25,8 @@ import { copyNodeAsImage } from "@/lib/copy-as-image";
 import { formatDisplayDate } from "@/lib/date-ranges";
 import type { ExportColumn } from "@/lib/export-to-excel";
 import { useRowSelection } from "@/lib/use-row-selection";
+import { useColumnWidths } from "@/lib/use-column-widths";
+import { useColumnResize } from "@/lib/use-column-resize";
 
 import { exportTransactions } from "./actions";
 import {
@@ -75,6 +77,8 @@ export function TransactionsTable({
   const [isExporting, setIsExporting] = useState(false);
   const [openVehicle, setOpenVehicle] = useState<{ id: string; reg: string | null } | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
+  const { widths, setWidths, commitWidths } = useColumnWidths("sar2o:transactions-columns");
+  const { headerRowRef, startResize } = useColumnResize(widths, setWidths, commitWidths);
 
   // Rows loaded so far across "Show more" clicks — search/filter/sort
   // changes always start a fresh page 1, so a new page-1 result replaces
@@ -263,9 +267,9 @@ export function TransactionsTable({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-        <Table containerClassName="overflow-x-visible">
+        <Table containerClassName="overflow-x-visible" className={Object.keys(widths).length > 0 ? "table-fixed" : undefined}>
           <TableHeader className="bg-background sticky top-0 z-20">
-            <TableRow>
+            <TableRow ref={headerRowRef}>
               <TableHead className="sticky left-0 z-20 w-20 border-r bg-muted">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -282,6 +286,8 @@ export function TransactionsTable({
                 activeKey={filters.sort}
                 direction={filters.dir}
                 onSort={handleSort}
+                width={widths.date}
+                onResizeStart={startResize("date")}
               />
               <SortableHead
                 label="Deal number"
@@ -289,6 +295,8 @@ export function TransactionsTable({
                 activeKey={filters.sort}
                 direction={filters.dir}
                 onSort={handleSort}
+                width={widths.deal}
+                onResizeStart={startResize("deal")}
               />
               <SortableHead
                 label="Client"
@@ -296,10 +304,12 @@ export function TransactionsTable({
                 activeKey={filters.sort}
                 direction={filters.dir}
                 onSort={handleSort}
+                width={widths.client}
+                onResizeStart={startResize("client")}
               />
-              <TableHead>Reg</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Invoice</TableHead>
+              <TableHead data-column-id="reg">Reg</TableHead>
+              <TableHead data-column-id="type">Type</TableHead>
+              <TableHead data-column-id="invoice">Invoice</TableHead>
               <SortableHead
                 label="Amount"
                 sortKey="amount"
@@ -307,8 +317,10 @@ export function TransactionsTable({
                 direction={filters.dir}
                 onSort={handleSort}
                 className="text-right"
+                width={widths.amount}
+                onResizeStart={startResize("amount")}
               />
-              <TableHead>Status</TableHead>
+              <TableHead data-column-id="status">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
