@@ -3,6 +3,7 @@
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 import { describeAuditEntry, type FieldChange } from "./describe-change";
+import { ACTIVITY_ENTITY_TYPES, type ActivityEntityType } from "./entity-types";
 
 /**
  * Activity log (SPEC item 39) Phase 3: the per-record feed, shared by the
@@ -10,8 +11,6 @@ import { describeAuditEntry, type FieldChange } from "./describe-change";
  * record_notes' own RLS), one query pair keyed by (entityType, entityId)
  * rather than a separate implementation per panel.
  */
-export const ACTIVITY_ENTITY_TYPES = ["vehicles", "clients", "contracts"] as const;
-export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number];
 
 export interface ActivityEntry {
   id: string;
