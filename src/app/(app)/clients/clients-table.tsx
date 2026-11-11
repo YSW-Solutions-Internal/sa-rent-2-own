@@ -23,6 +23,8 @@ import { copyNodeAsImage } from "@/lib/copy-as-image";
 import { formatSaPhoneForDisplay } from "@/lib/phone";
 import { useRowSelection } from "@/lib/use-row-selection";
 import { compareStrings, useTableControls } from "@/lib/use-table-controls";
+import { useColumnWidths } from "@/lib/use-column-widths";
+import { useColumnResize } from "@/lib/use-column-resize";
 
 import { DeleteClientButton } from "./delete-client-button";
 import { ClientPanel } from "./client-panel";
@@ -88,6 +90,9 @@ export function ClientsTable({
     sortFns,
     defaultSortKey: "name",
   });
+
+  const { widths, setWidths, commitWidths } = useColumnWidths("sar2o:clients-columns");
+  const { headerRowRef, startResize } = useColumnResize(widths, setWidths, commitWidths);
 
   const {
     selectedIds,
@@ -173,9 +178,9 @@ export function ClientsTable({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
-        <Table containerClassName="overflow-x-visible">
+        <Table containerClassName="overflow-x-visible" className={Object.keys(widths).length > 0 ? "table-fixed" : undefined}>
           <TableHeader className="bg-background sticky top-0 z-20">
-            <TableRow>
+            <TableRow ref={headerRowRef}>
               <TableHead className="sticky left-0 z-20 w-20 border-r bg-muted">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -186,16 +191,34 @@ export function ClientsTable({
                   <span className="text-muted-foreground flex-1 text-center">#</span>
                 </div>
               </TableHead>
-              <SortableHead label="Name" sortKey="name" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-              <SortableHead label="Cell number" sortKey="cell" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+              <SortableHead
+                label="Name"
+                sortKey="name"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.name}
+                onResizeStart={startResize("name")}
+              />
+              <SortableHead
+                label="Cell number"
+                sortKey="cell"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={onSort}
+                width={widths.cell}
+                onResizeStart={startResize("cell")}
+              />
               <SortableHead
                 label="ID number"
                 sortKey="idNumber"
                 activeKey={sortKey}
                 direction={sortDir}
                 onSort={onSort}
+                width={widths.idNumber}
+                onResizeStart={startResize("idNumber")}
               />
-              <TableHead>Banking</TableHead>
+              <TableHead data-column-id="banking">Banking</TableHead>
               <TableHead className="w-24" />
             </TableRow>
           </TableHeader>

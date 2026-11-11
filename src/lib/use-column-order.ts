@@ -3,11 +3,17 @@ import { useEffect, useState } from "react";
 interface StoredColumnPrefs {
   order?: string[];
   hidden?: string[];
+  widths?: Record<string, number>;
 }
 
-/** Drag-reorderable, hide/show-able column state for a table, persisted
- * per-viewer in localStorage. `storageKey` should be unique per table so
- * different tables don't clobber each other's preferences. */
+/** Drag-reorderable, hide/show-able, resizable column state for a table,
+ * persisted per-viewer in localStorage. `storageKey` should be unique per
+ * table so different tables don't clobber each other's preferences.
+ *
+ * Widths are keyed by plain column id strings rather than `T` so a table
+ * can also lock in a non-toggleable column's width (e.g. a fixed-width
+ * checkbox/actions column) via `setWidths`/`commitWidths` without widening
+ * `T` to include synthetic ids. */
 export function useColumnOrder<T extends string>(
   storageKey: string,
   defaultOrder: T[],
@@ -15,6 +21,7 @@ export function useColumnOrder<T extends string>(
 ) {
   const [order, setOrder] = useState<T[]>(defaultOrder);
   const [hidden, setHidden] = useState<Set<T>>(new Set(defaultHidden));
+  const [widths, setWidthsState] = useState<Record<string, number>>({});
 
   useEffect(() => {
     // localStorage is unavailable during SSR, so preferences are synced
@@ -36,6 +43,13 @@ export function useColumnOrder<T extends string>(
       if (Array.isArray(parsed.hidden)) {
         setHidden(new Set(parsed.hidden.filter((id): id is T => known.has(id))));
       }
+      if (parsed.widths && typeof parsed.widths === "object") {
+        const validWidths: Record<string, number> = {};
+        for (const [id, w] of Object.entries(parsed.widths)) {
+          if (typeof w === "number" && w > 0) validWidths[id] = w;
+        }
+        setWidthsState(validWidths);
+      }
     } catch {
       // Private browsing / blocked storage / corrupt value — defaults stand.
     }
@@ -43,11 +57,11 @@ export function useColumnOrder<T extends string>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
-  function persist(nextOrder: T[], nextHidden: Set<T>) {
+  function persist(nextOrder: T[], nextHidden: Set<T>, nextWidths: Record<string, number>) {
     try {
       localStorage.setItem(
         storageKey,
-        JSON.stringify({ order: nextOrder, hidden: [...nextHidden] })
+        JSON.stringify({ order: nextOrder, hidden: [...nextHidden], widths: nextWidths })
       );
     } catch {
       // Ignore — preference just won't persist this session.
@@ -62,7 +76,7 @@ export function useColumnOrder<T extends string>(
       const next = prev.slice();
       next.splice(from, 1);
       next.splice(to, 0, activeId);
-      persist(next, hidden);
+      persist(next, hidden, widths);
       return next;
     });
   }
@@ -75,14 +89,27 @@ export function useColumnOrder<T extends string>(
       } else {
         next.add(id);
       }
-      persist(order, next);
+      persist(order, next, widths);
       return next;
     });
+  }
+
+  /** Live width update while a resize drag is in progress — no
+   * localStorage write, so dragging doesn't hammer it every frame. */
+  function setWidths(next: Record<string, number>) {
+    setWidthsState(next);
+  }
+
+  /** Width update to persist — called once a resize drag ends. */
+  function commitWidths(next: Record<string, number>) {
+    setWidthsState(next);
+    persist(order, hidden, next);
   }
 
   function reset() {
     setOrder(defaultOrder);
     setHidden(new Set(defaultHidden));
+    setWidthsState({});
     try {
       localStorage.removeItem(storageKey);
     } catch {
@@ -90,5 +117,15 @@ export function useColumnOrder<T extends string>(
     }
   }
 
-  return { order, hidden, reorder, toggleHidden, reset, isHidden: (id: T) => hidden.has(id) };
+  return {
+    order,
+    hidden,
+    widths,
+    reorder,
+    toggleHidden,
+    setWidths,
+    commitWidths,
+    reset,
+    isHidden: (id: T) => hidden.has(id),
+  };
 }
