@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 
-import { addRecordNote, getRecordActivity, type ActivityEntityType, type ActivityEntry } from "./actions";
+import { addRecordNote, getRecordActivity, type ActivityEntry } from "./actions";
+import type { ActivityEntityType } from "./entity-types";
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" });
