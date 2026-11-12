@@ -1,16 +1,21 @@
 import type { ReactNode } from "react";
 
-import { Text, View } from "@react-pdf/renderer";
+import { Image, Text, View } from "@react-pdf/renderer";
 
+import { LOGO_DATA_URI } from "./assets/logo";
 import { styles } from "./styles";
 import type { AgreementClause } from "./types";
 
-/** Letterhead bar, repeated on every page via `fixed`. */
+/** Letterhead bar, repeated on every page via `fixed`. White background
+ * (the logo artwork has an opaque white background of its own, so it
+ * only reads cleanly on white) with a brand-colored rule underneath to
+ * keep the colored presence the solid dark-blue bar used to carry. */
 export function AgreementHeader({ dealNumber }: { dealNumber: string | null }) {
   return (
     <View style={styles.headerBar} fixed>
-      <View>
-        <Text style={styles.headerCompany}>SA Rent 2 Own</Text>
+      <View style={styles.headerLeft}>
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- this is @react-pdf/renderer's PDF-drawing Image, not an HTML <img>; its ImageProps has no alt. */}
+        <Image src={LOGO_DATA_URI} style={styles.headerLogo} />
         <Text style={styles.headerCompanySub}>Silver Trio CC t/a SA Rent 2 Own · Reg 2014/206712/07 · VAT 4670274002</Text>
       </View>
       <View style={styles.headerDealBox}>

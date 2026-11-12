@@ -4,7 +4,7 @@ import { BRAND } from "./brand";
 
 export const styles = StyleSheet.create({
   page: {
-    paddingTop: 90,
+    paddingTop: 106,
     paddingBottom: 50,
     paddingHorizontal: 40,
     fontSize: 9,
@@ -16,18 +16,22 @@ export const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 62,
-    backgroundColor: BRAND.blueDark,
+    height: 78,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 2,
+    borderBottomColor: BRAND.blueDark,
     paddingHorizontal: 40,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerCompany: { color: "#FFFFFF", fontSize: 14, fontWeight: 700 },
-  headerCompanySub: { color: "#CFE8F2", fontSize: 7, marginTop: 2 },
+  headerLeft: { flexDirection: "column" },
+  // 900x236 source art (3.814:1) scaled down to a 34pt-tall header mark.
+  headerLogo: { width: 130, height: 34 },
+  headerCompanySub: { color: BRAND.mutedForeground, fontSize: 7, marginTop: 4 },
   headerDealBox: { alignItems: "flex-end" },
-  headerDealLabel: { color: "#CFE8F2", fontSize: 7 },
-  headerDealValue: { color: "#FFFFFF", fontSize: 11, fontWeight: 700 },
+  headerDealLabel: { color: BRAND.mutedForeground, fontSize: 7 },
+  headerDealValue: { color: BRAND.blueDark, fontSize: 12, fontWeight: 700 },
   footer: {
     position: "absolute",
     bottom: 20,
