@@ -16,6 +16,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Unique migration timestamps
+        run: |
+          dupes="$(ls supabase/migrations | cut -d_ -f1 | sort | uniq -d)"
+          if [ -n "$dupes" ]; then
+            echo "Two migration files share a timestamp: $dupes. Re-create yours with 'supabase migration new'." >&2
+            exit 1
+          fi
+
       - run: npm ci
 
       - name: Typecheck
