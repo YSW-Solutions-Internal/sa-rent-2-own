@@ -42,7 +42,7 @@ import { VehiclePanel } from "../vehicles/vehicle-panel";
 import { Textarea } from "@/components/ui/textarea";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
-import { createContract, updateContract } from "./actions";
+import { createContract, previewDealNumber, updateContract } from "./actions";
 import {
   billingDirectionValues,
   billingFrequencyValues,
@@ -127,7 +127,6 @@ type ContractSection = "deal" | "billing" | "financials" | "notes";
 /** Which section each field lives in (anything not listed is in Deal). */
 const FIELD_SECTION: Record<string, ContractSection> = {
   dealNumber: "billing",
-  statementTag: "billing",
   billingDay: "billing",
   billingDirection: "billing",
   billingFrequency: "billing",
@@ -170,6 +169,11 @@ export function ContractPanel({
   // "Add contract" asks which type first (a mini modal), rather than
   // leaving it as just another field inside the full form.
   const [typePickerOpen, setTypePickerOpen] = useState(false);
+  // Best-effort preview of the deal number a new contract would get,
+  // fetched once the type is chosen (see previewDealNumber's own note on
+  // why it's a preview, not a guarantee).
+  const [previewedDealNumber, setPreviewedDealNumber] = useState<string | null>(null);
+  const [dealNumberPreviewFailed, setDealNumberPreviewFailed] = useState(false);
 
   const form = useForm<ContractFormValues>({
     resolver: zodResolver(contractFormSchema),
@@ -182,6 +186,7 @@ export function ContractPanel({
   const hadVehicle = originalVehicleId !== "";
   const [vehicleMode, setVehicleMode] = useState<"keep" | "change" | "remove">("keep");
   const chosenVehicleId = useWatch({ control: form.control, name: "vehicleId" });
+  const chosenContractType = useWatch({ control: form.control, name: "contractType" });
   // The vehicle on this existing contract will be different once saved.
   const vehicleChanging =
     isEditing &&
@@ -204,7 +209,12 @@ export function ContractPanel({
     form.reset({ ...toFormValues(undefined), contractType: type });
     setVehicleMode("keep");
     setTypePickerOpen(false);
+    setPreviewedDealNumber(null);
+    setDealNumberPreviewFailed(false);
     setOpen(true);
+    previewDealNumber(type)
+      .then((result) => setPreviewedDealNumber(result.dealNumber))
+      .catch(() => setDealNumberPreviewFailed(true));
   }
   // A save blocked by validation scrolls to the section holding the first bad field.
   function onInvalid(errors: FieldErrors<ContractFormValues>) {
@@ -282,7 +292,7 @@ export function ContractPanel({
           title={
             isEditing
               ? `${readOnly ? "Contract details" : "Edit contract"} – ${contract!.deal_number ?? contract!.vehicleLabel ?? "no deal number"}`
-              : "Add contract"
+              : `Add New ${CONTRACT_TYPE_LABELS[chosenContractType]} Contract`
           }
         />
         <PanelModalSections
@@ -298,6 +308,15 @@ export function ContractPanel({
             <form id="contract-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
             <fieldset disabled={readOnly} className="contents">
             <PanelModalSection id="deal" title="Deal">
+            {!isEditing && (
+              <p className="text-muted-foreground -mt-1 text-sm">
+                Deal number:{" "}
+                <span className="text-foreground font-medium">
+                  {dealNumberPreviewFailed ? "—" : (previewedDealNumber ?? "Generating…")}
+                </span>
+                {" "}(assigned when you save)
+              </p>
+            )}
             <section className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -454,7 +473,16 @@ export function ContractPanel({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Contract type</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => {
+                          field.onChange(v);
+                          // Residual value only applies to rent-to-own — drop a
+                          // stale number rather than silently keep saving it
+                          // once the field itself is hidden.
+                          if (v !== "rent_to_own") form.setValue("residualValue", undefined);
+                        }}
+                      >
                         <FormControl>
                           <SelectTrigger className="w-full">
                             <SelectValue />
@@ -538,25 +566,6 @@ export function ContractPanel({
                       <FormLabel>Deal number</FormLabel>
                       <FormControl>
                         <Input placeholder="MAD..." {...field} value={field.value ?? ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              {isEditing && (
-                <FormField
-                  control={form.control}
-                  name="statementTag"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Statement tag</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Auto-generated from surname if left blank"
-                          {...field}
-                          value={field.value ?? ""}
-                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -697,19 +706,21 @@ export function ContractPanel({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="residualValue"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Residual value (RV)</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {chosenContractType === "rent_to_own" && (
+                <FormField
+                  control={form.control}
+                  name="residualValue"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Residual value (RV)</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="isPaidUp"
@@ -768,17 +779,19 @@ export function ContractPanel({
             <DialogDescription>What type of contract is this?</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
-            {contractTypeValues.map((t) => (
-              <Button
-                key={t}
-                type="button"
-                variant="outline"
-                className="justify-start"
-                onClick={() => startNewContract(t)}
-              >
-                {CONTRACT_TYPE_LABELS[t]}
-              </Button>
-            ))}
+            {contractTypeValues
+              .filter((t) => t !== "other")
+              .map((t) => (
+                <Button
+                  key={t}
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => startNewContract(t)}
+                >
+                  {CONTRACT_TYPE_LABELS[t]}
+                </Button>
+              ))}
           </div>
         </DialogContent>
       </Dialog>

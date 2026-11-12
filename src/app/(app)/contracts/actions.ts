@@ -77,6 +77,21 @@ async function generateDealNumber(
   return nextDealNumber((existing ?? []).map((r) => r.deal_number), scheme);
 }
 
+/** Read-only preview of the deal number a new contract of this type would
+ * get right now, shown in the "Add contract" form before anything is
+ * saved. Best-effort: the real number is only locked in at insert time
+ * (createContract retries on a collision), so two people creating a
+ * contract of the same type at nearly the same moment could both be shown
+ * the same preview, with the second actually getting the next one after
+ * it. */
+export async function previewDealNumber(
+  contractType: ContractFormValues["contractType"]
+): Promise<{ dealNumber: string | null }> {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  return { dealNumber: await generateDealNumber(supabase, contractType) };
+}
+
 async function toContractRow(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   values: ContractFormValues
