@@ -22,6 +22,7 @@ import { StatButtonPill } from "@/components/dashboard/stat-pill";
 import { formatDisplayDate, isoDaysFromNow } from "@/lib/date-ranges";
 import type { ExportColumn } from "@/lib/export-to-excel";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
+import { cn } from "@/lib/utils";
 import { useRowSelection } from "@/lib/use-row-selection";
 import { compareNumbers, compareStrings, useTableControls } from "@/lib/use-table-controls";
 import { useColumnWidths } from "@/lib/use-column-widths";
@@ -376,51 +377,57 @@ export function ContractsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRows.map((row, index) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => setPanel((prev) => ({ contractId: row.id, open: true, openCount: (prev?.openCount ?? 0) + 1 }))}
-              >
-                <TableCell
-                  className="sticky left-0 z-10 w-20 border-r bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted"
-                  onClick={(e) => e.stopPropagation()}
+            {filteredRows.map((row, index) => {
+              const isStr = row.contract_type === "short_term_rental";
+              return (
+                <TableRow
+                  key={row.id}
+                  className={cn("cursor-pointer", isStr && "bg-muted/40")}
+                  onClick={() => setPanel((prev) => ({ contractId: row.id, open: true, openCount: (prev?.openCount ?? 0) + 1 }))}
                 >
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      checked={selectedIds.has(row.id)}
-                      onCheckedChange={() => toggleRow(row.id)}
-                      aria-label={`Select ${row.deal_number ?? row.vehicleLabel}`}
-                    />
-                    <span className="text-muted-foreground flex-1 text-center">{index + 1}</span>
-                  </div>
-                </TableCell>
-                <TableCell>{row.deal_number ?? "—"}</TableCell>
-                <TableCell className="font-medium">{row.vehicleLabel}</TableCell>
-                <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
-                <TableCell className="capitalize">{row.contract_type.replace(/_/g, " ")}</TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABELS[row.status]}</Badge>
-                </TableCell>
-                <TableCell>
-                  {row.installment_amount ? `R${row.installment_amount.toLocaleString()}` : "—"}
-                </TableCell>
-                <TableCell>
-                  {row.arrears_amount > 0 ? (
-                    <Badge variant="destructive">R{Math.round(row.arrears_amount).toLocaleString()}</Badge>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                <TableCell>{formatDisplayDate(row.end_date)}</TableCell>
-                <TableCell
-                  className="flex items-center justify-end gap-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {canEdit && <DeleteContractButton contractId={row.id} label={row.vehicleLabel} />}
-                </TableCell>
-              </TableRow>
-            ))}
+                  <TableCell
+                    className={cn(
+                      "sticky left-0 z-10 w-20 border-r group-hover:bg-muted group-data-[state=selected]:bg-muted",
+                      isStr ? "bg-muted/40" : "bg-background"
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedIds.has(row.id)}
+                        onCheckedChange={() => toggleRow(row.id)}
+                        aria-label={`Select ${row.deal_number ?? row.vehicleLabel}`}
+                      />
+                      <span className="text-muted-foreground flex-1 text-center">{index + 1}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{row.deal_number ?? "—"}</TableCell>
+                  <TableCell className="font-medium">{row.vehicleLabel}</TableCell>
+                  <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
+                  <TableCell className="capitalize">{row.contract_type.replace(/_/g, " ")}</TableCell>
+                  <TableCell>
+                    <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABELS[row.status]}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {row.installment_amount ? `R${row.installment_amount.toLocaleString()}` : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {row.arrears_amount > 0 ? (
+                      <Badge variant="destructive">R{Math.round(row.arrears_amount).toLocaleString()}</Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>{formatDisplayDate(row.end_date)}</TableCell>
+                  <TableCell
+                    className="flex items-center justify-end gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {canEdit && <DeleteContractButton contractId={row.id} label={row.vehicleLabel} />}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {filteredRows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={10} className="text-muted-foreground text-center py-8">
@@ -468,7 +475,7 @@ export function ContractsTable({
           </TableHeader>
           <TableBody>
             {selectedRows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow key={row.id} className={row.contract_type === "short_term_rental" ? "bg-muted/40" : undefined}>
                 <TableCell>{row.deal_number ?? "—"}</TableCell>
                 <TableCell className="font-medium">{row.vehicleLabel}</TableCell>
                 <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
