@@ -41,12 +41,18 @@ export function SidebarNav({
               onClick={onNavigate}
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white/70 transition-colors",
-                collapsed && "justify-center px-2",
-                isActive ? "bg-sidebar-accent text-white" : "hover:bg-white/10 hover:text-white"
+                collapsed ? "flex-col justify-center gap-1 px-1 py-2 text-center" : undefined,
+                isActive ? "bg-destructive text-white" : "hover:bg-white/10 hover:text-white"
               )}
             >
               <Icon className="size-4 shrink-0" />
-              {!collapsed && item.label}
+              {collapsed ? (
+                <span className="text-[10px] leading-tight font-semibold uppercase break-words">
+                  {item.label}
+                </span>
+              ) : (
+                item.label
+              )}
             </Link>
           );
         }
