@@ -1,0 +1,32 @@
+name: Schema drift check
+
+# Read-only: compares prod's schema with what supabase/migrations/ builds, and prints any
+# difference (e.g. a change pasted into the dashboard that has no migration file).
+# Run by hand: Actions → Schema drift check → Run workflow. Also runs when this file changes, so
+# it can run before it reaches main (GitHub only offers "Run workflow" for files on main).
+on:
+  workflow_dispatch:
+  push:
+    paths: [.github/workflows/schema-drift.yml]
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Diff prod against migrations
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          supabase db diff --db-url "$PROD_DB_URL" --schema public,storage > drift.sql
+          if [ -s drift.sql ]; then
+            echo "::warning::Prod differs from the migrations. SQL needed to bring the migrations in line:"
+            cat drift.sql
+          else
+            echo "No drift: prod matches supabase/migrations/."
+          fi
