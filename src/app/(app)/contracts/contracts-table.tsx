@@ -382,13 +382,13 @@ export function ContractsTable({
               return (
                 <TableRow
                   key={row.id}
-                  className={cn("cursor-pointer", isStr && "bg-muted/40")}
+                  className={cn("cursor-pointer", isStr && "bg-muted/70")}
                   onClick={() => setPanel((prev) => ({ contractId: row.id, open: true, openCount: (prev?.openCount ?? 0) + 1 }))}
                 >
                   <TableCell
                     className={cn(
                       "sticky left-0 z-10 w-20 border-r group-hover:bg-muted group-data-[state=selected]:bg-muted",
-                      isStr ? "bg-muted/40" : "bg-background"
+                      isStr ? "bg-muted/70" : "bg-background"
                     )}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -475,7 +475,7 @@ export function ContractsTable({
           </TableHeader>
           <TableBody>
             {selectedRows.map((row) => (
-              <TableRow key={row.id} className={row.contract_type === "short_term_rental" ? "bg-muted/40" : undefined}>
+              <TableRow key={row.id} className={row.contract_type === "short_term_rental" ? "bg-muted/70" : undefined}>
                 <TableCell>{row.deal_number ?? "—"}</TableCell>
                 <TableCell className="font-medium">{row.vehicleLabel}</TableCell>
                 <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
