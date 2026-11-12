@@ -64,7 +64,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/vehicle
       supabase
         .from("vehicles")
         .select(
-          "id, file_no, make, model, year, colour, vin, engine_number, status, legacy_status_note, current_mileage, next_service_km, next_service_date, last_serviced_by, tracker_supplier, tracker_running, natis_on_file, license_disc_expiry, has_spare_key, warranty_active, warranty_notes, has_contract_file, purchase_price, potential_sale_price, sale_price"
+          "id, file_no, make, model, year, colour, vin, engine_number, status, legacy_status_note, current_mileage, next_service_km, next_service_date, last_serviced_by, tracker_supplier, tracker_number, tracker_running, natis_on_file, license_disc_expiry, has_spare_key, warranty_active, warranty_notes, has_contract_file, purchase_price, potential_sale_price, sale_price"
         )
         .order("file_no"),
       supabase.from("vehicle_registrations").select("vehicle_id, plate_number").is("effective_to", null),

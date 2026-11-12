@@ -24,6 +24,7 @@ export const vehicleFormSchema = z.object({
   nextServiceDate: z.string().optional(),
   lastServicedBy: z.string().optional(),
   trackerSupplier: z.string().optional(),
+  trackerNumber: z.string().optional(),
   trackerRunning: z.enum(trackerStatusValues),
   natisOnFile: z.boolean().optional(),
   licenseDiscExpiry: z.string().optional(),
