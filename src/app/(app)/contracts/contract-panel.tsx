@@ -44,6 +44,7 @@ import { useControllableOpen } from "@/lib/use-controllable-open";
 
 import { createContract, previewDealNumber, updateContract } from "./actions";
 import { generateContractAgreement, getStoredAgreementUrl, regenerateAgreementPreview } from "./agreement-actions";
+import { AgreementViewerDialog } from "./agreement-viewer-dialog";
 import {
   billingDirectionValues,
   billingFrequencyValues,
@@ -195,9 +196,17 @@ export function ContractPanel({
   const [storedAgreementPath, setStoredAgreementPath] = useState(contract?.agreement_file_path ?? null);
   const [agreementBusy, setAgreementBusy] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
+  // Both buttons show the resulting PDF in the same in-app viewer rather
+  // than a new browser tab; the viewer itself offers "Open in new tab" as
+  // the actual save-to-disk path.
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = useState("Agreement");
+  const [viewerOpen, setViewerOpen] = useState(false);
 
-  function openPdf(url: string) {
-    window.open(url, "_blank", "noopener,noreferrer");
+  function showPdf(url: string, title: string) {
+    setViewerUrl(url);
+    setViewerTitle(title);
+    setViewerOpen(true);
   }
 
   async function handleAgreementButton() {
@@ -219,7 +228,7 @@ export function ContractPanel({
         toast.error(result.error ?? "Couldn't open the agreement");
         return;
       }
-      openPdf(result.url);
+      showPdf(result.url, `Agreement – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
     } catch {
       toast.error("Couldn't open the agreement");
     } finally {
@@ -236,7 +245,7 @@ export function ContractPanel({
         toast.error(result.error ?? "Couldn't render a preview");
         return;
       }
-      openPdf(result.url);
+      showPdf(result.url, `Preview – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
     } catch {
       toast.error("Couldn't render a preview");
     } finally {
@@ -898,6 +907,7 @@ export function ContractPanel({
         />
       </>
     )}
+    <AgreementViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} url={viewerUrl} title={viewerTitle} />
     </>
   );
 }
