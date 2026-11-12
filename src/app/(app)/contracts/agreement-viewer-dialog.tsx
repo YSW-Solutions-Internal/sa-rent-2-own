@@ -5,19 +5,24 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-/** In-app viewer for a generated agreement PDF (signed URL), used by both
- * "Download agreement" and "Preview with current data" so looking at the
- * document doesn't require leaving the panel for a new tab. "Open in new
- * tab" stays as the actual save-to-disk / print path. */
+/** In-app viewer for a generated agreement PDF, used by both "Download
+ * agreement" and "Preview with current data" so looking at the document
+ * doesn't require leaving the panel for a new tab. url (plain, no forced
+ * Content-Disposition) renders inline in the iframe; downloadUrl (same
+ * object, Content-Disposition: attachment with a friendly filename) is
+ * the "Download" link's target - the two can't be the same URL, since a
+ * forced-download response won't display inline. */
 export function AgreementViewerDialog({
   open,
   onOpenChange,
   url,
+  downloadUrl,
   title,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   url: string | null;
+  downloadUrl: string | null;
   title: string;
 }) {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -41,10 +46,10 @@ export function AgreementViewerDialog({
           className="flex items-center justify-between gap-2 border-b px-4 py-3 outline-none"
         >
           <DialogTitle className="truncate text-base">{title}</DialogTitle>
-          {url && (
+          {downloadUrl && (
             <Button asChild variant="link" size="sm" className="mr-8 h-auto shrink-0 p-0">
-              <a href={url} target="_blank" rel="noopener noreferrer">
-                Open in new tab
+              <a href={downloadUrl} target="_blank" rel="noopener noreferrer">
+                Download
               </a>
             </Button>
           )}

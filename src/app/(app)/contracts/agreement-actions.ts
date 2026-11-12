@@ -11,7 +11,31 @@ const AGREEMENT_BUCKET = "contract-agreements";
 
 export interface AgreementResult {
   error?: string;
+  /** Plain signed URL - no forced Content-Disposition, so it renders
+   * inline (used as the viewer dialog's iframe src). */
   url?: string;
+  /** Same object, with Content-Disposition: attachment and a friendly
+   * filename - loading this URL always downloads rather than displays,
+   * so it's only for the viewer's "Download" link, never the iframe. */
+  downloadUrl?: string;
+}
+
+/** The name a saved/downloaded copy gets - not the object's own path in
+ * the bucket, which stays "<contractId>/agreement.pdf" regardless. */
+function agreementFileName(dealNumber: string | null, suffix?: string): string {
+  const safeDeal = (dealNumber ?? "Unassigned").replace(/[\\/:*?"<>|]/g, "-");
+  return `SAR2O Contract${suffix ? ` ${suffix}` : ""} - ${safeDeal}.pdf`;
+}
+
+/** Supabase's signed-URL `download` option is just an extra query param
+ * the Storage server reads to set Content-Disposition - it isn't part of
+ * what the token's signature covers, so it's safe to derive a
+ * forced-download variant of an already-signed URL by appending it
+ * ourselves, rather than signing the URL twice. */
+function withDownloadName(signedUrl: string, filename: string): string {
+  const url = new URL(signedUrl);
+  url.searchParams.set("download", filename);
+  return url.toString();
 }
 
 /** Generates the as-signed agreement PDF and stores it at the contract's
@@ -55,13 +79,17 @@ export async function generateContractAgreement(contractId: string): Promise<Agr
 
 /** Signed URL for the stored as-signed agreement. filePath is the
  * contract's own agreement_file_path, already known client-side (same
- * pattern as vehicles/cost-actions.ts's getInvoiceUrl). */
-export async function getStoredAgreementUrl(filePath: string): Promise<AgreementResult> {
+ * pattern as vehicles/cost-actions.ts's getInvoiceUrl); dealNumber names
+ * the file when it's actually saved/downloaded. */
+export async function getStoredAgreementUrl(
+  filePath: string,
+  dealNumber: string | null
+): Promise<AgreementResult> {
   await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.storage.from(AGREEMENT_BUCKET).createSignedUrl(filePath, 60);
   if (error || !data) return { error: "Couldn't open the agreement" };
-  return { url: data.signedUrl };
+  return { url: data.signedUrl, downloadUrl: withDownloadName(data.signedUrl, agreementFileName(dealNumber)) };
 }
 
 /** Renders a fresh agreement from the contract's current data and stores
@@ -85,5 +113,8 @@ export async function regenerateAgreementPreview(contractId: string): Promise<Ag
 
   const { data: signed, error: signError } = await supabase.storage.from(AGREEMENT_BUCKET).createSignedUrl(path, 60);
   if (signError || !signed) return { error: "Couldn't open the preview" };
-  return { url: signed.signedUrl };
+  return {
+    url: signed.signedUrl,
+    downloadUrl: withDownloadName(signed.signedUrl, agreementFileName(data.dealNumber, "Preview")),
+  };
 }

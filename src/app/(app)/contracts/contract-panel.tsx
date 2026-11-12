@@ -197,14 +197,17 @@ export function ContractPanel({
   const [agreementBusy, setAgreementBusy] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
   // Both buttons show the resulting PDF in the same in-app viewer rather
-  // than a new browser tab; the viewer itself offers "Open in new tab" as
-  // the actual save-to-disk path.
+  // than a new browser tab; the viewer itself offers a "Download" link
+  // as the actual save-to-disk path, named "SAR2O Contract - <deal
+  // number>.pdf" server-side (see agreement-actions.ts).
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerDownloadUrl, setViewerDownloadUrl] = useState<string | null>(null);
   const [viewerTitle, setViewerTitle] = useState("Agreement");
   const [viewerOpen, setViewerOpen] = useState(false);
 
-  function showPdf(url: string, title: string) {
+  function showPdf(url: string, downloadUrl: string | undefined, title: string) {
     setViewerUrl(url);
+    setViewerDownloadUrl(downloadUrl ?? url);
     setViewerTitle(title);
     setViewerOpen(true);
   }
@@ -223,12 +226,12 @@ export function ContractPanel({
         path = `${contract.id}/agreement.pdf`;
         setStoredAgreementPath(path);
       }
-      const result = await getStoredAgreementUrl(path);
+      const result = await getStoredAgreementUrl(path, contract.deal_number);
       if (result.error || !result.url) {
         toast.error(result.error ?? "Couldn't open the agreement");
         return;
       }
-      showPdf(result.url, `Agreement – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
+      showPdf(result.url, result.downloadUrl, `Agreement – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
     } catch {
       toast.error("Couldn't open the agreement");
     } finally {
@@ -245,7 +248,7 @@ export function ContractPanel({
         toast.error(result.error ?? "Couldn't render a preview");
         return;
       }
-      showPdf(result.url, `Preview – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
+      showPdf(result.url, result.downloadUrl, `Preview – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
     } catch {
       toast.error("Couldn't render a preview");
     } finally {
@@ -907,7 +910,13 @@ export function ContractPanel({
         />
       </>
     )}
-    <AgreementViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} url={viewerUrl} title={viewerTitle} />
+    <AgreementViewerDialog
+      open={viewerOpen}
+      onOpenChange={setViewerOpen}
+      url={viewerUrl}
+      downloadUrl={viewerDownloadUrl}
+      title={viewerTitle}
+    />
     </>
   );
 }
