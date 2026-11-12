@@ -227,13 +227,55 @@ async function pickVehicle(query: string, ctx: ToolContext): Promise<{ vehicle: 
   };
 }
 
+/**
+ * Recent vehicle_costs rows for one vehicle — shared by find_vehicle (a
+ * glance, auto-included on every single-vehicle match so the model always
+ * has real history in front of it instead of relying on its own
+ * conversation memory — see the 2026-11-12 false-retraction incidents,
+ * where it wrongly told two different people an already-saved service
+ * "wasn't actually recorded") and vehicle_costs (the fuller, on-request view).
+ */
+async function recentCosts(vehicleId: string, limit: number) {
+  const db = createAdminClient();
+  const { data: costs } = await db
+    .from("vehicle_costs")
+    .select("cost_type, cost_date, amount, supplier, work_done, mileage_at_time")
+    .eq("vehicle_id", vehicleId)
+    .order("cost_date", { ascending: false })
+    .limit(limit);
+
+  return {
+    shown: costs?.length ?? 0,
+    total_shown_rand: round2((costs ?? []).reduce((sum, c) => sum + c.amount, 0)),
+    costs: (costs ?? []).map((c) => ({
+      date: c.cost_date,
+      type: c.cost_type,
+      amount_rand: c.amount,
+      supplier: c.supplier,
+      work_done: c.work_done,
+      mileage_km: c.mileage_at_time,
+    })),
+  };
+}
+
+const FIND_VEHICLE_RECENT_COSTS_LIMIT = 10;
+
 const findVehicleInput = z.object({ query: z.string().min(2).max(60) });
 
 async function findVehicle(raw: unknown, ctx: ToolContext) {
   const { query } = findVehicleInput.parse(raw);
   const picked = await pickVehicle(query, ctx);
   if ("result" in picked) return picked.result;
-  return { matches: await describeVehicles([picked.vehicle], ctx) };
+  const [described] = await describeVehicles([picked.vehicle], ctx);
+  return {
+    matches: [described],
+    // Ground truth for "was X already logged" — trust this over anything
+    // said earlier in the conversation. Call vehicle_costs for more rows.
+    recent_costs: {
+      ...(await recentCosts(picked.vehicle.id, FIND_VEHICLE_RECENT_COSTS_LIMIT)),
+      note: `Most recent ${FIND_VEHICLE_RECENT_COSTS_LIMIT} service/repair/cost entries for this vehicle, if any — call vehicle_costs for more.`,
+    },
+  };
 }
 
 const vehicleCostsInput = z.object({ query: z.string().min(2).max(60), limit: z.number().int().min(1).max(25).optional() });
@@ -244,27 +286,12 @@ async function vehicleCosts(raw: unknown, ctx: ToolContext) {
   if ("result" in picked) return picked.result;
 
   const [described] = await describeVehicles([picked.vehicle], ctx);
-  const db = createAdminClient();
-  const { data: costs } = await db
-    .from("vehicle_costs")
-    .select("cost_type, cost_date, amount, supplier, work_done, mileage_at_time")
-    .eq("vehicle_id", picked.vehicle.id)
-    .order("cost_date", { ascending: false })
-    .limit(limit ?? 15);
+  const recent = await recentCosts(picked.vehicle.id, limit ?? 15);
 
   return {
     vehicle: { registration: described.registration, file_no: described.file_no },
-    shown: costs?.length ?? 0,
-    total_shown_rand: round2((costs ?? []).reduce((sum, c) => sum + c.amount, 0)),
+    ...recent,
     note: "The total only covers the rows shown (most recent first) — ask for more rows if the vehicle has a longer history.",
-    costs: (costs ?? []).map((c) => ({
-      date: c.cost_date,
-      type: c.cost_type,
-      amount_rand: c.amount,
-      supplier: c.supplier,
-      work_done: c.work_done,
-      mileage_km: c.mileage_at_time,
-    })),
   };
 }
 
@@ -491,7 +518,7 @@ export const TOOLS = [
   {
     name: "find_vehicle",
     description:
-      "Look up vehicles by registration (e.g. KX97TCGP, spaces ignored), file number (e.g. B0154), client name, or a description: make, model, colour and/or year (e.g. \"Jeep Renegade\", \"white Polo 2019\"). One match returns full details; several matches return a short list to choose from. Returns status, mileage, service dates, licence disc expiry and, for permitted users, the active contract.",
+      "Look up vehicles by registration (e.g. KX97TCGP, spaces ignored), file number (e.g. B0154), client name, or a description: make, model, colour and/or year (e.g. \"Jeep Renegade\", \"white Polo 2019\"). One match returns full details plus its recent service/repair/cost history (recent_costs) — treat that as ground truth for whether something was already logged, never your own memory of this conversation. Several matches return a short list to choose from instead.",
     input_schema: {
       type: "object" as const,
       properties: { query: { type: "string", description: "Registration, file number, client name, or make/model/colour/year words" } },
