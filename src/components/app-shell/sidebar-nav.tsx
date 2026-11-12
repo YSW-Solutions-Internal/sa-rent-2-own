@@ -47,7 +47,7 @@ export function SidebarNav({
             >
               <Icon className="size-4 shrink-0" />
               {collapsed ? (
-                <span className="text-[10px] leading-tight font-semibold uppercase break-words">
+                <span className="text-[7px] leading-tight font-semibold uppercase">
                   {item.label}
                 </span>
               ) : (
