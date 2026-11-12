@@ -16,6 +16,7 @@ export interface VehicleWithRegistration {
   next_service_date: string | null;
   last_serviced_by: string | null;
   tracker_supplier: string | null;
+  tracker_number: string | null;
   tracker_running: TrackerStatus;
   natis_on_file: boolean;
   license_disc_expiry: string | null;

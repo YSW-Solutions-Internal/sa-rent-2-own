@@ -77,6 +77,7 @@ function toFormValues(vehicle?: VehicleWithRegistration): VehicleFormValues {
     nextServiceDate: vehicle.next_service_date ?? undefined,
     lastServicedBy: vehicle.last_serviced_by ?? undefined,
     trackerSupplier: vehicle.tracker_supplier ?? undefined,
+    trackerNumber: vehicle.tracker_number ?? undefined,
     trackerRunning: vehicle.tracker_running,
     natisOnFile: vehicle.natis_on_file,
     licenseDiscExpiry: vehicle.license_disc_expiry ?? undefined,
@@ -99,6 +100,7 @@ const FIELD_SECTION: Record<string, VehicleSection> = {
   nextServiceDate: "service",
   lastServicedBy: "service",
   trackerSupplier: "service",
+  trackerNumber: "service",
   trackerRunning: "service",
   licenseDiscExpiry: "compliance",
   warrantyNotes: "compliance",
@@ -419,6 +421,19 @@ export function VehiclePanel({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tracker supplier</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="trackerNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tracker number</FormLabel>
                       <FormControl>
                         <Input {...field} value={field.value ?? ""} />
                       </FormControl>

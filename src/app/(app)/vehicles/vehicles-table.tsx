@@ -363,6 +363,7 @@ type ColumnId =
   | "lastServicedBy"
   | "trackerRunning"
   | "trackerSupplier"
+  | "trackerNumber"
   | "natis"
   | "spareKey"
   | "contractFile"
@@ -403,6 +404,7 @@ const DEFAULT_COLUMN_ORDER: ColumnId[] = [
   "lastServicedBy",
   "trackerRunning",
   "trackerSupplier",
+  "trackerNumber",
   "natis",
   "spareKey",
   "contractFile",
@@ -432,6 +434,7 @@ const DEFAULT_HIDDEN_COLUMNS: ColumnId[] = [
   "lastServicedBy",
   "trackerRunning",
   "trackerSupplier",
+  "trackerNumber",
   "natis",
   "spareKey",
   "contractFile",
@@ -473,6 +476,7 @@ const COLUMN_LABELS: Record<ColumnId, string> = {
   lastServicedBy: "Last serviced by",
   trackerRunning: "Tracker running",
   trackerSupplier: "Tracker supplier",
+  trackerNumber: "Tracker number",
   natis: "NATIS",
   spareKey: "Spare key",
   contractFile: "Contract on file",
@@ -684,6 +688,8 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
       ) : (
         (vehicle.tracker_supplier ?? "—")
       );
+    case "trackerNumber":
+      return vehicle.tracker_number ?? "—";
     case "natis":
       return vehicle.natis_on_file ? "On file" : "Missing";
     case "spareKey":
@@ -767,6 +773,8 @@ function exportValue(column: ColumnId, vehicle: VehicleWithRegistration): string
       return TRACKER_LABELS[vehicle.tracker_running];
     case "trackerSupplier":
       return vehicle.tracker_supplier ?? "";
+    case "trackerNumber":
+      return vehicle.tracker_number ?? "";
     case "natis":
       return vehicle.natis_on_file ? "On file" : "Missing";
     case "spareKey":
@@ -1074,6 +1082,7 @@ export function VehiclesTable({
     lastServicedBy: (a, b) => compareStrings(a.last_serviced_by, b.last_serviced_by),
     trackerRunning: (a, b) => compareStrings(a.tracker_running, b.tracker_running),
     trackerSupplier: (a, b) => compareStrings(a.tracker_supplier, b.tracker_supplier),
+    trackerNumber: (a, b) => compareStrings(a.tracker_number, b.tracker_number),
     natis: (a, b) => compareNumbers(Number(a.natis_on_file), Number(b.natis_on_file)),
     spareKey: (a, b) => compareNumbers(Number(a.has_spare_key), Number(b.has_spare_key)),
     contractFile: (a, b) => compareNumbers(Number(a.has_contract_file), Number(b.has_contract_file)),
