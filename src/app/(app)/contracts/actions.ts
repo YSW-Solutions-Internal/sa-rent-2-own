@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 import { syncVehicleAssignment } from "@/lib/vehicle-assignments";
+import { generateContractAgreement } from "./agreement-actions";
 import { DEAL_NUMBER_SCHEMES, nextDealNumber } from "./deal-number";
 import { contractFormSchema, type ContractFormValues } from "./schema";
 
@@ -179,6 +180,17 @@ export async function createContract(raw: ContractFormValues): Promise<ActionRes
   const syncError = await syncVehicleAssignment(supabase, contract.id, values.vehicleId, values.startDate);
   if (syncError) {
     return { error: `Contract created, but ${syncError.charAt(0).toLowerCase()}${syncError.slice(1)}` };
+  }
+
+  // Best-effort: the agreement PDF is a convenience, not core contract
+  // data, so a failure here (missing template, render error, storage
+  // outage) must not fail contract creation - generateContractAgreement
+  // can be retried later from the UI once agreement_file_path is seen to
+  // be empty.
+  try {
+    await generateContractAgreement(contract.id);
+  } catch {
+    // Swallowed deliberately - see comment above.
   }
 
   revalidatePath("/contracts");

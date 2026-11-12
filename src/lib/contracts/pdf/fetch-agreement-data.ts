@@ -78,6 +78,7 @@ export async function fetchAgreementData(
     category === "rent_to_own" ? "Rent to Own Agreement" : "Vehicle Rental Agreement";
 
   return {
+    category,
     contractTypeLabel,
     dealNumber: contract.deal_number,
     startDate: contract.start_date,

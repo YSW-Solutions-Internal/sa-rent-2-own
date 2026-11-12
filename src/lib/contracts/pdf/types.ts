@@ -27,6 +27,7 @@ export interface AgreementVehicle {
 }
 
 export interface AgreementData {
+  category: AgreementCategory;
   contractTypeLabel: string;
   dealNumber: string | null;
   startDate: string;
