@@ -57,7 +57,7 @@ import type { ContractStatus, ContractType, PaymentMethod, TrackerStatus, Vehicl
 import { vehicleStatusValues } from "./schema";
 import { updateVehicleColour, updateVehicleStatus } from "./actions";
 import { InlineEditCell } from "./inline-edit-cell";
-import { VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
+import { RegButton, VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
 import { VehiclePanel } from "./vehicle-panel";
 import { AddCostDialog } from "./add-cost-dialog";
 import type { VehicleWithRegistration } from "./types";
@@ -516,10 +516,17 @@ const MANAGER_ONLY_COLUMNS = new Set<ColumnId>([
   "paidUp",
 ]);
 
-function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManage: boolean) {
+function renderCell(
+  column: ColumnId,
+  vehicle: VehicleWithRegistration,
+  canManage: boolean,
+  onOpenVehicle: (id: string) => void = () => {}
+) {
   switch (column) {
     case "reg":
-      return vehicle.current_plate ?? "—";
+      return (
+        <RegButton reg={vehicle.current_plate} vehicleId={vehicle.id} onOpen={(id) => onOpenVehicle(id)} />
+      );
     case "fileNo":
       return vehicle.file_no;
     case "make":
@@ -822,6 +829,7 @@ const VehicleRow = memo(function VehicleRow({
   onToggleSelected,
   onEdit,
   onAddCost,
+  onOpenVehicle,
 }: {
   vehicle: VehicleWithRegistration;
   index: number;
@@ -831,6 +839,7 @@ const VehicleRow = memo(function VehicleRow({
   onToggleSelected: (id: string) => void;
   onEdit: (id: string) => void;
   onAddCost: (id: string) => void;
+  onOpenVehicle: (id: string) => void;
 }) {
   const columns = useMemo(() => columnsKey.split("|") as ColumnId[], [columnsKey]);
 
@@ -848,7 +857,7 @@ const VehicleRow = memo(function VehicleRow({
       </TableCell>
       {columns.map((column) => (
         <TableCell key={column} className={column === "reg" ? "font-medium" : undefined}>
-          {renderCell(column, vehicle, canManage)}
+          {renderCell(column, vehicle, canManage, onOpenVehicle)}
         </TableCell>
       ))}
       {canManage && (
@@ -944,6 +953,12 @@ export function VehiclesTable({
   const openPanel = useCallback(
     (vehicleId: string) => setPanel((prev) => ({ vehicleId, open: true, openCount: (prev?.openCount ?? 0) + 1 })),
     []
+  );
+  // Clicking a reg opens the edit panel for admins, or the read-only summary
+  // (same popup the Payments tables use) for everyone else.
+  const openVehicle = useCallback(
+    (vehicleId: string) => (canManage ? openPanel(vehicleId) : setSummaryVehicleId(vehicleId)),
+    [canManage, openPanel]
   );
   const panelVehicle = panel ? rows.find((r) => r.id === panel.vehicleId) : undefined;
   const captureRef = useRef<HTMLDivElement>(null);
@@ -1386,6 +1401,7 @@ export function VehiclesTable({
                   onToggleSelected={toggleRowSelected}
                   onEdit={openPanel}
                   onAddCost={setCostVehicleId}
+                  onOpenVehicle={openVehicle}
                 />
               ))}
               {filteredRows.length === 0 && (
