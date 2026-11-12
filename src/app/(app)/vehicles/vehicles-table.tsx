@@ -1,6 +1,7 @@
 "use client";
 
 import { ClientName } from "@/components/blacklist-flag";
+import { cn } from "@/lib/utils";
 import { memo, useCallback, useMemo, useRef, useState, useTransition } from "react";
 import {
   DndContext,
@@ -834,9 +835,16 @@ const VehicleRow = memo(function VehicleRow({
 }) {
   const columns = useMemo(() => columnsKey.split("|") as ColumnId[], [columnsKey]);
 
+  const isStr = vehicle.status === "str";
+
   return (
-    <TableRow>
-      <TableCell className="sticky left-0 z-10 w-20 border-r bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
+    <TableRow className={isStr ? "bg-muted/40" : undefined}>
+      <TableCell
+        className={cn(
+          "sticky left-0 z-10 w-20 border-r group-hover:bg-muted group-data-[state=selected]:bg-muted",
+          isStr ? "bg-muted/40" : "bg-background"
+        )}
+      >
         <div className="flex items-center gap-2">
           <Checkbox
             checked={isSelected}
@@ -852,7 +860,12 @@ const VehicleRow = memo(function VehicleRow({
         </TableCell>
       ))}
       {canManage && (
-        <TableCell className="sticky right-0 z-10 w-20 border-l bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
+        <TableCell
+          className={cn(
+            "sticky right-0 z-10 w-20 border-l group-hover:bg-muted group-data-[state=selected]:bg-muted",
+            isStr ? "bg-muted/40" : "bg-background"
+          )}
+        >
           <div className="flex items-center justify-end gap-1">
             <Button
               type="button"
@@ -1448,7 +1461,7 @@ export function VehiclesTable({
             </TableHeader>
             <TableBody>
               {selectedRows.map((vehicle) => (
-                <TableRow key={vehicle.id}>
+                <TableRow key={vehicle.id} className={vehicle.status === "str" ? "bg-muted/40" : undefined}>
                   {visibleColumns.map((column) => (
                     <TableCell key={column} className={column === "reg" ? "font-medium" : undefined}>
                       {renderCell(column, vehicle, false)}
