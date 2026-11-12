@@ -26,3 +26,38 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Proves supabase/preview/mask.sql leaves no real client data behind (see docs/adr/0001).
+  mask-test:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start database with all migrations
+        run: supabase db start
+
+      - name: Load realistic fixtures
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/test-fixtures.sql
+
+      - name: verify-mask rejects unmasked data
+        run: |
+          if psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/verify-mask.sql; then
+            echo "verify-mask.sql passed on unmasked data" >&2
+            exit 1
+          fi
+
+      - name: Mask, then verify
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/mask.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/verify-mask.sql
+
+      - name: Mask is safe to re-run
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/mask.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/verify-mask.sql
