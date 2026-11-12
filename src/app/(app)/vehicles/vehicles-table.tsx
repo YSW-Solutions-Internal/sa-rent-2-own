@@ -847,11 +847,11 @@ const VehicleRow = memo(function VehicleRow({
   const isStr = vehicle.status === "str";
 
   return (
-    <TableRow className={isStr ? "bg-muted/40" : undefined}>
+    <TableRow className={isStr ? "bg-muted/70" : undefined}>
       <TableCell
         className={cn(
           "sticky left-0 z-10 w-20 border-r group-hover:bg-muted group-data-[state=selected]:bg-muted",
-          isStr ? "bg-muted/40" : "bg-background"
+          isStr ? "bg-muted/70" : "bg-background"
         )}
       >
         <div className="flex items-center gap-2">
@@ -872,7 +872,7 @@ const VehicleRow = memo(function VehicleRow({
         <TableCell
           className={cn(
             "sticky right-0 z-10 w-20 border-l group-hover:bg-muted group-data-[state=selected]:bg-muted",
-            isStr ? "bg-muted/40" : "bg-background"
+            isStr ? "bg-muted/70" : "bg-background"
           )}
         >
           <div className="flex items-center justify-end gap-1">
@@ -1477,7 +1477,7 @@ export function VehiclesTable({
             </TableHeader>
             <TableBody>
               {selectedRows.map((vehicle) => (
-                <TableRow key={vehicle.id} className={vehicle.status === "str" ? "bg-muted/40" : undefined}>
+                <TableRow key={vehicle.id} className={vehicle.status === "str" ? "bg-muted/70" : undefined}>
                   {visibleColumns.map((column) => (
                     <TableCell key={column} className={column === "reg" ? "font-medium" : undefined}>
                       {renderCell(column, vehicle, false)}
