@@ -500,6 +500,7 @@ export interface Database {
           reversal_reference: string | null;
           reversed_transaction_id: string | null;
           source: string;
+          payment_method: PaymentMethod | null;
           created_at: string;
         };
         Insert: {
@@ -514,6 +515,7 @@ export interface Database {
           reversal_reference?: string | null;
           reversed_transaction_id?: string | null;
           source?: string;
+          payment_method?: PaymentMethod | null;
           created_at?: string;
         };
         Update: Partial<

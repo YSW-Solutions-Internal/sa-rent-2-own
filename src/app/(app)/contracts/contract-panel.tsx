@@ -825,7 +825,9 @@ export function ContractPanel({
                 )}
               />
             </section>
-            {isEditing && <ContractPaymentHistorySection contractId={contract!.id} />}
+            {isEditing && (
+              <ContractPaymentHistorySection contractId={contract!.id} canManage={!readOnly} />
+            )}
             </PanelModalSection>
 
             <PanelModalSection id="notes" title="Notes">
