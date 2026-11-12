@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   PanelModalContent,
   PanelModalFooter,
@@ -167,6 +167,10 @@ export function ContractPanel({
   const [newVehicles, setNewVehicles] = useState<SelectableVehicle[]>([]);
   const [newClients, setNewClients] = useState<SelectableClient[]>([]);
 
+  // "Add contract" asks which type first (a mini modal), rather than
+  // leaving it as just another field inside the full form.
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
+
   const form = useForm<ContractFormValues>({
     resolver: zodResolver(contractFormSchema),
     defaultValues: toFormValues(contract),
@@ -193,6 +197,14 @@ export function ContractPanel({
   function removeVehicle() {
     setVehicleMode("remove");
     form.setValue("vehicleId", "", { shouldDirty: true });
+  }
+  // The type picker's answer becomes the new form's starting contractType,
+  // then opens the real form.
+  function startNewContract(type: (typeof contractTypeValues)[number]) {
+    form.reset({ ...toFormValues(undefined), contractType: type });
+    setVehicleMode("keep");
+    setTypePickerOpen(false);
+    setOpen(true);
   }
   // A save blocked by validation scrolls to the section holding the first bad field.
   function onInvalid(errors: FieldErrors<ContractFormValues>) {
@@ -252,20 +264,19 @@ export function ContractPanel({
         }
       }}
     >
-      {!isControlled && (
-        <DialogTrigger asChild>
-          {isEditing ? (
+      {!isControlled &&
+        (isEditing ? (
+          <DialogTrigger asChild>
             <Button variant="ghost" size="sm">
               Edit
             </Button>
-          ) : (
-            <Button variant="destructive">
-              <Plus />
-              Add contract
-            </Button>
-          )}
-        </DialogTrigger>
-      )}
+          </DialogTrigger>
+        ) : (
+          <Button variant="destructive" onClick={() => setTypePickerOpen(true)}>
+            <Plus />
+            Add contract
+          </Button>
+        ))}
       <PanelModalContent>
         <PanelModalHeader
           title={
@@ -436,30 +447,32 @@ export function ContractPanel({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="contractType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contract type</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {contractTypeValues.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {CONTRACT_TYPE_LABELS[t]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {isEditing && (
+                <FormField
+                  control={form.control}
+                  name="contractType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contract type</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {contractTypeValues.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {CONTRACT_TYPE_LABELS[t]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="status"
@@ -747,6 +760,29 @@ export function ContractPanel({
         )}
       </PanelModalContent>
     </Dialog>
+    {!isControlled && !isEditing && (
+      <Dialog open={typePickerOpen} onOpenChange={setTypePickerOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New contract</DialogTitle>
+            <DialogDescription>What type of contract is this?</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {contractTypeValues.map((t) => (
+              <Button
+                key={t}
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => startNewContract(t)}
+              >
+                {CONTRACT_TYPE_LABELS[t]}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
     {/* Outside the contract's <form>: React submit events bubble through portals. */}
     {!readOnly && (
       <>
