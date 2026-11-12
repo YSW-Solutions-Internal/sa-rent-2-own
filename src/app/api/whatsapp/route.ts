@@ -2,6 +2,7 @@ import { after } from "next/server";
 
 import { answerQuestion } from "@/lib/whatsapp/bot";
 import { handleServiceFlow } from "@/lib/whatsapp/service-flow";
+import { handleVehicleCostFlow } from "@/lib/whatsapp/vehicle-cost-flow";
 import {
   LIMIT_PER_DAY,
   LIMIT_PER_HOUR,
@@ -70,17 +71,18 @@ async function handleInbound(params: Record<string, string>) {
       return;
     }
 
-    // Guided "Add a service" conversation: scripted, not the model, because it writes data.
+    // Guided "Add a service" / "Add a vehicle cost" conversations: scripted,
+    // not the model, because they write data. Each only recognises its own
+    // flow (see loadActiveFlow in either module), so checking both in order
+    // correctly reaches whichever one actually owns this phone's active row.
     const media =
       Number(params.NumMedia ?? "0") > 0 && params.MediaUrl0
         ? { url: params.MediaUrl0, contentType: params.MediaContentType0 ?? "" }
         : null;
-    const flowReply = await handleServiceFlow(
-      key,
-      question,
-      { id: profile.id, fullName: profile.full_name, role: profile.role },
-      media
-    );
+    const flowUser = { id: profile.id, fullName: profile.full_name, role: profile.role };
+    const flowReply =
+      (await handleServiceFlow(key, question, flowUser, media)) ??
+      (await handleVehicleCostFlow(key, question, flowUser, media));
     if (flowReply !== null) {
       await sendWhatsAppMessage(from, flowReply.text, { skipButton: flowReply.skipButton });
       await recordOutbound({ phone: key, profileId: profile.id, body: flowReply.text, kind: "answer" });
