@@ -52,8 +52,14 @@ export function RentalDocument({ data }: { data: AgreementData }) {
 
         <SectionHeading>Rental Period</SectionHeading>
         <DataTable rows={periodRows} />
+      </Page>
 
-        <SectionHeading>Terms and Conditions</SectionHeading>
+      <Page size="A4" style={styles.page}>
+        <AgreementHeader dealNumber={data.dealNumber} />
+        <AgreementFooter generatedAt={data.generatedAt} />
+
+        <Text style={styles.docTitle}>Terms and Conditions</Text>
+
         {data.clauses.map((clause) => (
           <ClauseSection key={clause.heading} clause={clause} />
         ))}

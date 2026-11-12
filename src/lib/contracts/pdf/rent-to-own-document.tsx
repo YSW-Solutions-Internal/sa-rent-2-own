@@ -57,6 +57,7 @@ export function RentToOwnDocument({ data }: { data: AgreementData }) {
     ["Pre-delivery valet fee", formatCurrency(data.startupFeePreDeliveryValet)],
     ["Registration and licence fee", formatCurrency(data.startupFeeRegistrationLicense)],
     ["Total startup fee inc VAT", formatCurrency(data.startupFeeTotal)],
+    ["Expected end value inc VAT", formatCurrency(data.expectedEndValueIncVat)],
   ];
 
   return (
@@ -70,17 +71,23 @@ export function RentToOwnDocument({ data }: { data: AgreementData }) {
         <SectionHeading>Rental Provider & Renter</SectionHeading>
         <TwoColumn left={<DataTable rows={providerRows} />} right={<DataTable rows={renterRows} />} />
 
-        <SectionHeading>Vehicle Description</SectionHeading>
-        <DataTable rows={vehicleRows} />
+        <TwoColumn
+          left={
+            <>
+              <SectionHeading>Vehicle Description</SectionHeading>
+              <DataTable rows={vehicleRows} />
+            </>
+          }
+          right={
+            <>
+              <SectionHeading>Contract Details</SectionHeading>
+              <DataTable rows={contractRows} />
+            </>
+          }
+        />
 
-        <SectionHeading>Contract Details</SectionHeading>
-        <DataTable rows={contractRows} />
-
-        <SectionHeading>Startup Fee (inc VAT)</SectionHeading>
+        <SectionHeading>Startup Fee & Expected Value (inc VAT)</SectionHeading>
         <DataTable rows={startupFeeRows} />
-
-        <SectionHeading>Expected Value at End of Term</SectionHeading>
-        <DataTable rows={[["Expected end value inc VAT", formatCurrency(data.expectedEndValueIncVat)]]} />
 
         <View style={styles.signatureRow} wrap={false}>
           <SignatureBlock role="Rental provider" />
