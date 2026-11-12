@@ -5,13 +5,21 @@ import type { Database, UserRole } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { downloadTwilioMedia } from "./twilio";
+import { parseVehicleCostMessage } from "./vehicle-cost-parse";
 
 /**
  * "Add a repair/car wash/maintenance/other cost" over WhatsApp — sibling of
  * service-flow.ts's "Add a service", but simpler: these cost types never
  * touch the vehicle's own mileage/next-service fields, so there's no km or
- * next-service date/km to ask for, and the cost date is never asked either
- * (defaults to the day the message is sent, same as the service flow).
+ * next-service date/km to ask for. The cost date defaults to the day the
+ * message is sent, same as the service flow, unless the message itself names
+ * one (common for a cost logged a few days after the fact).
+ *
+ * Also recognises a structured note with no command wording at all — e.g.
+ * one copied straight off an invoice ("HY22CPGP POLO VIVO 1.4\nBATTERY
+ * REPLACEMENT - 646D\nALBARAKAH AUTO SPARES JOZINI KZN\n11.11.2026\nR1450")
+ * — and parses it in one shot (vehicle-cost-parse.ts, same approach as
+ * service-flow.ts's service-parse.ts), asking only for whatever's missing.
  *
  * Deliberately a separate file rather than folded into service-flow.ts: the
  * service flow is live, carefully tuned production code (see its own
@@ -100,6 +108,22 @@ function pickCostType(text: string): CostType | null {
   return null;
 }
 
+/** A 5-8 char token mixing letters and digits — loose enough to catch most SA plates without being exact; the real check is the DB lookup in findCurrentVehicle. */
+function hasPlateLikeToken(t: string): boolean {
+  return t
+    .split(/[^a-z0-9]+/i)
+    .some((tok) => tok.length >= 5 && tok.length <= 8 && /[a-z]/i.test(tok) && /\d/.test(tok));
+}
+
+/**
+ * A structured note (not a question) that names a rand amount and something
+ * plate-shaped, e.g. a message copied straight off an invoice:
+ * "HY22CPGP ... BATTERY REPLACEMENT ... ALBARAKAH AUTO SPARES ... R1450".
+ * Treated as an add-cost message only if the parser then finds real fields
+ * in it (see startCostFlow) — this is just a cheap pre-filter.
+ */
+const looksLikeCostDetails = (t: string) => !t.includes("?") && /\br\s?\d/i.test(t) && hasPlateLikeToken(t);
+
 const CANCEL_RE = /^\s*(cancel|stop|quit|exit|abort|nevermind|never mind)\s*[.!]*\s*$/i;
 const YES_RE = /^\s*(yes|y|yep|yeah|confirm|ok|okay|correct|save)\s*[.!]*\s*$/i;
 const SKIP_RE = /^\s*(skip|no|none|n|nope|no invoice)\s*[.!]*\s*$/i;
@@ -134,6 +158,54 @@ function parseAmount(input: string): number | null {
 const formatRand = (n: number) => `R${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const todayZA = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
 
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+const isoDate = (y: number, m: number, d: number): string | null => {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return dt.toISOString().slice(0, 10);
+};
+
+/** Accepts 2026-10-27, 27/10/2026, 27-10-26, 27.10.2026, "27 10 2026", "27 Oct 2026". Returns YYYY-MM-DD or null. */
+function parseDate(input: string): string | null {
+  const s = input.trim().toLowerCase().replace(/,/g, " ").replace(/\s+/g, " ");
+  const year = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
+  let m = s.match(/^(\d{4})[-/. ](\d{1,2})[-/. ](\d{1,2})$/);
+  if (m) return isoDate(Number(m[1]), Number(m[2]), Number(m[3]));
+  m = s.match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4}|\d{2})$/);
+  if (m) return isoDate(year(m[3]), Number(m[2]), Number(m[1]));
+  m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?[-/. ]?([a-z]{3,9})[-/. ]?(\d{4}|\d{2})$/);
+  if (m) {
+    const mi = MONTHS.indexOf(m[2].slice(0, 3));
+    if (mi >= 0) return isoDate(year(m[3]), mi + 1, Number(m[1]));
+  }
+  return null;
+}
+
+const validateCostDate = (iso: string, today = todayZA()) => (iso > today ? "The cost date can't be in the future." : null);
+
+/**
+ * Re-checks every field in `d` against the same rules the step-by-step flow
+ * applies, dropping any that fail so the default (today) is used instead.
+ * Used for values that arrive pre-filled from a free-text message.
+ */
+function sanitise(d: FlowData): { data: FlowData; dropped: string[] } {
+  const data = { ...d };
+  const dropped: string[] = [];
+  if (data.costDate && validateCostDate(data.costDate)) {
+    delete data.costDate;
+    dropped.push("cost date (using today)");
+  }
+  if (data.place && (data.place.length < 2 || data.place.length > 100)) {
+    delete data.place;
+    dropped.push("who it was done by / paid to");
+  }
+  if (data.workDone && data.workDone.length > 300) {
+    data.workDone = data.workDone.slice(0, 300);
+  }
+  return { data, dropped };
+}
+
 /** First step that still needs an answer. Required: registration, type, who/paid to, cost. Optional (SKIP-able): what was done, invoice. */
 function nextStep(d: FlowData): Step {
   if (!d.vehicleId) return "reg";
@@ -156,6 +228,9 @@ const describeFilled = (d: FlowData) =>
   [
     d.reg && `Vehicle: ${d.reg} (${d.vehicle})`,
     d.costType && `Type: ${COST_TYPE_LABELS[d.costType]}`,
+    // Only shown when a message named a date other than today — the default
+    // is silent, same as the service flow's own service date.
+    d.costDate && d.costDate !== todayZA() && `Date: ${d.costDate}`,
     d.place && `Done by: ${d.place}`,
     d.amount != null && `Cost: ${formatRand(d.amount)}`,
     d.workDone && `Work done: ${d.workDone}`,
@@ -273,6 +348,53 @@ async function findCurrentVehicle(reg: string) {
   return { status: "ok" as const, id: v.id, label: [v.year, v.make, v.model].filter(Boolean).join(" ") || "vehicle" };
 }
 
+/** Turns a free-text message into pre-filled flow data; null if nothing usable was found. */
+async function prefillFromMessage(text: string): Promise<{ data: FlowData; notes: string[] } | null> {
+  const parsed = await parseVehicleCostMessage(text);
+  if (!parsed) return null;
+  const data: FlowData = {};
+  const notes: string[] = [];
+
+  if (parsed.reg) {
+    const reg = normaliseReg(parsed.reg);
+    const v = reg.length >= 3 ? await findCurrentVehicle(reg) : { status: "none" as const, suggestions: [] as string[] };
+    if (v.status === "ok") Object.assign(data, { vehicleId: v.id, reg, vehicle: v.label });
+    else notes.push(`I didn't find a vehicle in the fleet with the registration ${reg}.${didYouMean(v.suggestions)}`);
+  }
+  if (parsed.costType) data.costType = parsed.costType;
+  const costDate = parsed.costDate ? parseDate(parsed.costDate) : null;
+  if (costDate) data.costDate = costDate;
+  if (parsed.place && parsed.place.length >= 2 && parsed.place.length <= 100) data.place = parsed.place;
+  const amount = parsed.amount != null ? parseAmount(String(parsed.amount)) : null;
+  if (amount !== null) data.amount = amount;
+  if (parsed.workDone) data.workDone = parsed.workDone.slice(0, 300);
+
+  const clean = sanitise(data);
+  if (clean.dropped.length) notes.push(`I couldn't use the ${clean.dropped.join(", ")} from your message.`);
+  return Object.keys(clean.data).length ? { data: clean.data, notes } : notes.length ? { data: {}, notes } : null;
+}
+
+/** Parses a message that looks like it's starting an add-cost flow; null if it isn't one, after all. */
+async function startCostFlow(text: string, explicit: boolean): Promise<{ step: Step; data: FlowData; notes: string[] } | null> {
+  // A long message may already contain the details: pull them out, then only ask for what's missing.
+  const prefill = (explicit ? text.replace(START_RE, "").trim().length >= 4 : true) ? await prefillFromMessage(text) : null;
+  // Without the command wording, only take over if the message really carries several cost fields.
+  if (!explicit && (!prefill || Object.keys(prefill.data).length < 2)) return null;
+  const inferred = inferCostType(text);
+  if (!prefill) {
+    const data: FlowData = { costDate: todayZA(), ...(inferred ? { costType: inferred } : {}) };
+    return { step: nextStep(data), data, notes: [] };
+  }
+  // The cost date defaults to the day the message is sent unless the message names one; the
+  // keyword-inferred type is a fallback for whatever the parser didn't find.
+  const merged: FlowData = { costDate: todayZA(), ...(inferred ? { costType: inferred } : {}), ...prefill.data };
+  const { data: filled, dropped } = sanitise(merged);
+  if (!filled.costDate) filled.costDate = todayZA();
+  const notes = [...prefill.notes];
+  if (dropped.length) notes.push(`I couldn't use the ${dropped.join(", ")} from your message.`);
+  return { step: nextStep(filled), data: filled, notes };
+}
+
 async function saveVehicleCost(user: FlowUser, d: Required<FlowData>): Promise<boolean> {
   // One statement, logged in audit_log against this person's profile with
   // source "whatsapp" — see whatsapp_save_vehicle_cost in migration
@@ -342,7 +464,7 @@ export async function handleVehicleCostFlow(
     return { text: reply, skipButton: flow?.step === "work" || flow?.step === "invoice" };
   } catch (err) {
     console.error("whatsapp add-vehicle-cost flow failed", err);
-    return START_RE.test(text)
+    return START_RE.test(text) || looksLikeCostDetails(text)
       ? { text: "Logging a cost isn't available right now. Please add it in the web app.", skipButton: false }
       : null;
   }
@@ -361,17 +483,18 @@ async function runFlow(
   }
 
   if (!flow) {
-    if (!START_RE.test(text)) return null;
+    const explicit = START_RE.test(text);
+    if (!explicit && !looksLikeCostDetails(text)) return null;
     if (!canUseFlow(user.role)) {
-      return "Only admins can log a vehicle cost. Ask an admin, or add it in the web app.";
+      return explicit ? "Only admins can log a vehicle cost. Ask an admin, or add it in the web app." : null;
     }
-    const costType = inferCostType(text);
-    const data: FlowData = { costDate: todayZA(), ...(costType ? { costType } : {}) };
-    const claimed = await claimFlow(phone, "reg", data);
-    if (claimed) return presentFlow(data, "reg");
+    const started = await startCostFlow(text, explicit);
+    if (!started) return null;
+    const claimed = await claimFlow(phone, started.step, started.data);
+    if (claimed) return presentFlow(started.data, started.step, started.notes);
     // Lost the claim to another message for this phone that landed at the same instant: queue instead of clobbering it.
-    await enqueueFlow(phone, "reg", data);
-    return queueAck();
+    await enqueueFlow(phone, started.step, started.data);
+    return queueAck(started.data.reg);
   }
 
   // Flow state is only trusted for someone who may still use it.
@@ -387,12 +510,17 @@ async function runFlow(
   // A second cost described while this one's still in progress: queue it
   // rather than letting it clobber or get misread as the answer to this
   // question (same reasoning as service-flow.ts's own handling of a second
-  // vehicle).
-  if (START_RE.test(text)) {
-    const costType = inferCostType(text);
-    const data: FlowData = { costDate: todayZA(), ...(costType ? { costType } : {}) };
-    await enqueueFlow(phone, "reg", data);
-    return `${queueAck()}\n\n${flow.step === "confirm" ? "" : QUESTIONS[flow.step]}`.trim();
+  // vehicle). The implicit (no command wording) case only counts once this
+  // flow already has its own registration to compare against — otherwise a
+  // wordy answer to "who was it done by?" could get mistaken for a
+  // different vehicle's cost note.
+  const explicitNew = START_RE.test(text);
+  if (explicitNew || (flow.data.reg && looksLikeCostDetails(text))) {
+    const started = await startCostFlow(text, explicitNew);
+    if (started && (explicitNew || started.data.reg !== flow.data.reg)) {
+      await enqueueFlow(phone, started.step, started.data);
+      return `${queueAck(started.data.reg)}\n\n${flow.step === "confirm" ? "" : QUESTIONS[flow.step]}`.trim();
+    }
   }
 
   const { step, data } = flow;
