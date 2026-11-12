@@ -9,5 +9,7 @@ There is no `staging` branch or staging Supabase project. Each pull request gets
 
 ## Consequences
 
+- On merge to `main` the integration deploys only migrations (and any Edge Functions or Storage buckets declared in `config.toml`; there are none). Auth and API settings in `config.toml` reach prod only if a `[remotes]` block names prod's project ID, so never add one for prod: the file holds local-dev auth values (localhost `site_url`, SMS provider off).
+- Supabase creates a branch database when a git branch is created, so the integration's "Supabase changes only" option must stay **off**, or PRs without migrations get no preview database.
 - Preview databases are built from migrations, so any change made on prod outside a migration file will be missing from previews and may conflict with later migrations.
 - Previews send WhatsApp through the Twilio Sandbox (only phones that joined it can receive), share prod's Anthropic key (so preview AI usage counts toward prod's spend), and have no SMS provider. They get a preview-only banking encryption key, so prod banking details are deleted rather than copied. Staff log in with their normal phone and password.
