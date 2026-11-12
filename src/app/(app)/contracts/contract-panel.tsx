@@ -64,6 +64,18 @@ const CONTRACT_TYPE_LABELS: Record<(typeof contractTypeValues)[number], string> 
   other: "Other",
 };
 
+/** Labels for the "new contract" type picker and the form title that
+ * follows it specifically -- plainer wording (no hyphens, "Long Term
+ * Rental" spelled out) than CONTRACT_TYPE_LABELS above, which stays as
+ * it is for the edit-mode Contract type dropdown and everywhere else
+ * that shows a contract type. */
+const NEW_CONTRACT_TYPE_LABELS: Record<(typeof contractTypeValues)[number], string> = {
+  rent_to_own: "Rent to own",
+  short_term_rental: "Short term rental",
+  rental: "Long Term Rental",
+  other: "Other",
+};
+
 const STATUS_LABELS: Record<(typeof contractStatusValues)[number], string> = {
   active: "Active",
   completed: "Completed",
@@ -292,7 +304,7 @@ export function ContractPanel({
           title={
             isEditing
               ? `${readOnly ? "Contract details" : "Edit contract"} – ${contract!.deal_number ?? contract!.vehicleLabel ?? "no deal number"}`
-              : `Add New ${CONTRACT_TYPE_LABELS[chosenContractType]} Contract`
+              : `Add New ${NEW_CONTRACT_TYPE_LABELS[chosenContractType]} Contract`
           }
         />
         <PanelModalSections
@@ -789,7 +801,7 @@ export function ContractPanel({
                   className="justify-start"
                   onClick={() => startNewContract(t)}
                 >
-                  {CONTRACT_TYPE_LABELS[t]}
+                  {NEW_CONTRACT_TYPE_LABELS[t]}
                 </Button>
               ))}
           </div>
