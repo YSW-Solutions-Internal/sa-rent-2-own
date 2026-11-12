@@ -28,6 +28,7 @@ export interface ContractWithDetails {
   notes: string | null;
   deal_number: string | null;
   statement_tag: string | null;
+  agreement_file_path: string | null;
   billing_day: number | null;
   billing_direction: BillingDirection;
   billing_frequency: BillingFrequency;

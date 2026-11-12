@@ -43,6 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
 import { createContract, previewDealNumber, updateContract } from "./actions";
+import { generateContractAgreement, getStoredAgreementUrl, regenerateAgreementPreview } from "./agreement-actions";
 import {
   billingDirectionValues,
   billingFrequencyValues,
@@ -187,6 +188,62 @@ export function ContractPanel({
   const [previewedDealNumber, setPreviewedDealNumber] = useState<string | null>(null);
   const [dealNumberPreviewFailed, setDealNumberPreviewFailed] = useState(false);
 
+  // Agreement PDF: generated automatically on contract creation (see
+  // createContract), but may still be missing (an old contract from
+  // before this feature, or a first attempt that failed) - in which case
+  // the same button generates it instead of downloading it.
+  const [storedAgreementPath, setStoredAgreementPath] = useState(contract?.agreement_file_path ?? null);
+  const [agreementBusy, setAgreementBusy] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+
+  function openPdf(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleAgreementButton() {
+    if (!contract) return;
+    setAgreementBusy(true);
+    try {
+      let path = storedAgreementPath;
+      if (!path) {
+        const generated = await generateContractAgreement(contract.id);
+        if (generated.error) {
+          toast.error(generated.error);
+          return;
+        }
+        path = `${contract.id}/agreement.pdf`;
+        setStoredAgreementPath(path);
+      }
+      const result = await getStoredAgreementUrl(path);
+      if (result.error || !result.url) {
+        toast.error(result.error ?? "Couldn't open the agreement");
+        return;
+      }
+      openPdf(result.url);
+    } catch {
+      toast.error("Couldn't open the agreement");
+    } finally {
+      setAgreementBusy(false);
+    }
+  }
+
+  async function handlePreviewAgreement() {
+    if (!contract) return;
+    setPreviewBusy(true);
+    try {
+      const result = await regenerateAgreementPreview(contract.id);
+      if (result.error || !result.url) {
+        toast.error(result.error ?? "Couldn't render a preview");
+        return;
+      }
+      openPdf(result.url);
+    } catch {
+      toast.error("Couldn't render a preview");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
   const form = useForm<ContractFormValues>({
     resolver: zodResolver(contractFormSchema),
     defaultValues: toFormValues(contract),
@@ -328,6 +385,16 @@ export function ContractPanel({
                 </span>
                 {" "}(assigned when you save)
               </p>
+            )}
+            {isEditing && (
+              <div className="-mt-1 flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={agreementBusy} onClick={handleAgreementButton}>
+                  {agreementBusy ? "Working…" : storedAgreementPath ? "Download agreement" : "Generate agreement"}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" disabled={previewBusy} onClick={handlePreviewAgreement}>
+                  {previewBusy ? "Rendering…" : "Preview with current data"}
+                </Button>
+              </div>
             )}
             <section className="grid gap-4 sm:grid-cols-2">
               <FormField
