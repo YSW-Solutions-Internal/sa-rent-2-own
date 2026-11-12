@@ -739,6 +739,19 @@ export interface Database {
       };
     };
     Functions: {
+      whatsapp_save_vehicle_cost: {
+        Args: {
+          p_user: string;
+          p_vehicle: string;
+          p_cost_type: VehicleCostType;
+          p_cost_date: string;
+          p_supplier: string;
+          p_amount: number;
+          p_work_done: string | null;
+          p_invoice: string | null;
+        };
+        Returns: undefined;
+      };
       whatsapp_save_service: {
         Args: {
           p_user: string;
