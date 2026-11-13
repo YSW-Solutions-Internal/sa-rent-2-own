@@ -39,7 +39,14 @@ export async function createStaffUser(raw: unknown): Promise<ActionResult> {
     phone,
     password: parsed.data.password,
     phone_confirm: true,
-    user_metadata: { full_name: parsed.data.fullName, role: parsed.data.role },
+    // full_name is just display text, but role is a privilege decision — it
+    // goes in app_metadata, not user_metadata, because only this
+    // service-role call can ever set app_metadata; user_metadata can be set
+    // by the account's own owner (even via a public signUp() call), and the
+    // handle_new_auth_user trigger only trusts role from app_metadata for
+    // exactly that reason (see migration 20261113120000).
+    user_metadata: { full_name: parsed.data.fullName },
+    app_metadata: { role: parsed.data.role },
   });
 
   if (createError) {

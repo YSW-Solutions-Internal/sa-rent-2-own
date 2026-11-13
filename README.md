@@ -59,11 +59,12 @@ curl -X POST 'https://<project-ref>.supabase.co/auth/v1/admin/users' \
     "phone": "+27821234567",
     "password": "SomeTempPassword123!",
     "phone_confirm": true,
-    "user_metadata": { "full_name": "Your Name", "role": "admin" }
+    "user_metadata": { "full_name": "Your Name" },
+    "app_metadata": { "role": "admin" }
   }'
 ```
 
-`user_metadata.role` is picked up automatically by the `handle_new_auth_user` trigger, which creates the matching `profiles` row. From there, that admin can add every other staff member from the **Staff** page.
+`app_metadata.role` is picked up automatically by the `handle_new_auth_user` trigger, which creates the matching `profiles` row — it has to be `app_metadata`, not `user_metadata`: only this service-role-authenticated call can ever set `app_metadata`, while `user_metadata` can be set by the account's own owner, so the trigger only ever trusts the former for a privilege decision (see migration `20261113120000`). From there, that admin can add every other staff member from the **Staff** page.
 
 ## Deployment
 
