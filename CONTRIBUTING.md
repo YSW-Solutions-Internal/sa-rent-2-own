@@ -34,3 +34,21 @@ release. Why it works this way: [docs/adr/0001-per-pr-preview-databases.md](docs
   test incoming messages, set the sandbox's "When a message comes in" to
   `https://<preview-url>/api/whatsapp` in the Twilio console.
 - Vehicle invoice files aren't copied, so invoice links in previews don't open.
+
+## GitHub secrets (Settings → Secrets and variables → Actions)
+
+| Secret | What it is |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | Supabase personal access token, scoped to the prod project, permission **Infrastructure and delivery → Development Branches: Read** only. |
+| `SUPABASE_PROD_PROJECT_REF` | Prod's project ID (from its dashboard URL). |
+| `PROD_DB_URL` | Prod's **Session pooler** connection string, password included. |
+
+**`SUPABASE_ACCESS_TOKEN` expires one year after it was created.** Check the date under Supabase →
+your avatar → Account preferences → Access Tokens, and keep a calendar reminder. When it expires,
+Preview Refresh fails with an authentication error (401). To renew: generate a new token with the
+same scope and permission, replace the secret's value, delete the old token, and re-run the
+failed Preview Refresh. If the token may have leaked, delete it in Supabase straight away: it can
+read the password of every preview database, and those hold real staff logins and business data.
+
+If prod's database password is ever reset, update `PROD_DB_URL` too, or Preview Refresh and the
+Schema drift check fail.

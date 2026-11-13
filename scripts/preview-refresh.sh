@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copies prod's data into a PR's Supabase preview branch database, then masks it.
 # Usage: scripts/preview-refresh.sh <git-branch> [--reset]
-# Env: SUPABASE_ACCESS_TOKEN, SUPABASE_PROD_PROJECT_REF, PROD_DB_URL. Needs supabase CLI, jq,
+# Env: SUPABASE_ACCESS_TOKEN, SUPABASE_PROD_PROJECT_REF, PROD_DB_URL. Needs curl, jq, supabase CLI,
 # and pg_dump/psql 17+. Run by .github/workflows/preview-refresh.yml; see docs/adr/0001.
 # Never prints connection strings.
 set -euo pipefail
@@ -14,20 +14,30 @@ RESET="${2:-}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# Supabase Management API. The token only needs "Development Branches: Read".
+API="https://api.supabase.com/v1"
+api() { curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "$API$1"; }
+
 # 1. Wait for Supabase to finish creating the branch and running its migrations.
 if [[ -n "${PREVIEW_REFRESH_TEST_REF:-}" ]]; then
   BRANCH_REF="$PREVIEW_REFRESH_TEST_REF" # test hook: exercises the guard without the API
 else
+  : "${SUPABASE_ACCESS_TOKEN:?}"
   BRANCH_REF=""
   for _ in $(seq 1 45); do
-    INFO="$(supabase branches list --project-ref "$SUPABASE_PROD_PROJECT_REF" -o json \
+    INFO="$(api "/projects/$SUPABASE_PROD_PROJECT_REF/branches" \
       | jq -c --arg b "$BRANCH" '[.[] | select(.git_branch == $b)][0] // empty')"
-    STATUS=""
-    [[ -n "$INFO" ]] && STATUS="$(jq -r '.status // empty' <<<"$INFO")"
+    STATUS=""; HEALTH=""
+    if [[ -n "$INFO" ]]; then
+      STATUS="$(jq -r '.status // empty' <<<"$INFO")"
+      HEALTH="$(jq -r '.preview_project_status // empty' <<<"$INFO")"
+    fi
     case "$STATUS" in
       MIGRATIONS_PASSED|FUNCTIONS_DEPLOYED)
-        BRANCH_REF="$(jq -r '.project_ref' <<<"$INFO")"
-        break ;;
+        if [[ "$HEALTH" == "ACTIVE_HEALTHY" || -z "$HEALTH" ]]; then
+          BRANCH_REF="$(jq -r '.project_ref' <<<"$INFO")"
+          break
+        fi ;;
       MIGRATIONS_FAILED|FUNCTIONS_FAILED)
         echo "Supabase preview branch for $BRANCH failed ($STATUS). Check the Supabase check on the PR." >&2
         exit 1 ;;
@@ -46,17 +56,22 @@ if [[ "$BRANCH_REF" == "$SUPABASE_PROD_PROJECT_REF" ]]; then
   exit 1
 fi
 
-BRANCH_DB_URL="$(supabase branches get "$BRANCH_REF" --project-ref "$SUPABASE_PROD_PROJECT_REF" -o env \
-  | sed -n 's/^POSTGRES_URL_NON_POOLING="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p')"
-if [[ -z "$BRANCH_DB_URL" ]]; then
-  echo "Could not read POSTGRES_URL_NON_POOLING for branch $BRANCH_REF" >&2
+# Branch connection: same session pooler host as prod (branches live in prod's region; the
+# direct db.<ref> host is IPv6-only, which GitHub runners can't reach), the branch's own user and
+# password from the API.
+POOLER_HOST="$(sed -n 's|^postgres\(ql\)\{0,1\}://.*@\([^/@]*pooler\.supabase\.com:[0-9]*\)/.*$|\2|p' <<<"$PROD_DB_URL")"
+if [[ -z "$POOLER_HOST" ]]; then
+  echo "PROD_DB_URL must be prod's Session pooler connection string (…@…pooler.supabase.com:5432/postgres)" >&2
   exit 1
 fi
-if [[ "$BRANCH_DB_URL" == "$PROD_DB_URL" || "$BRANCH_DB_URL" == *"$SUPABASE_PROD_PROJECT_REF"* ]]; then
-  echo "Refusing to refresh: target is prod" >&2
+CONFIG="$(api "/branches/$BRANCH_REF")"
+DB_PASS="$(jq -r '.db_pass // empty | @uri' <<<"$CONFIG")"
+if [[ -z "$DB_PASS" ]]; then
+  echo "Supabase API returned no database password for branch $BRANCH_REF" >&2
   exit 1
 fi
-echo "::add-mask::$BRANCH_DB_URL" 2>/dev/null || true
+echo "::add-mask::$DB_PASS"
+BRANCH_DB_URL="postgresql://postgres.$BRANCH_REF:$DB_PASS@$POOLER_HOST/postgres"
 
 # 3. Optional reset: rebuild the branch schema from the current migration files.
 if [[ "$RESET" == "--reset" ]]; then
