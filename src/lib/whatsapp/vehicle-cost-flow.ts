@@ -5,7 +5,7 @@ import type { Database, UserRole } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { downloadTwilioMedia } from "./twilio";
-import { parseVehicleCostMessage } from "./vehicle-cost-parse";
+import { parseVehicleCostMessage, type ParsedVehicleCost } from "./vehicle-cost-parse";
 
 /**
  * "Add a repair/car wash/maintenance/other cost" over WhatsApp — sibling of
@@ -20,6 +20,12 @@ import { parseVehicleCostMessage } from "./vehicle-cost-parse";
  * REPLACEMENT - 646D\nALBARAKAH AUTO SPARES JOZINI KZN\n11.11.2026\nR1450")
  * — and parses it in one shot (vehicle-cost-parse.ts, same approach as
  * service-flow.ts's service-parse.ts), asking only for whatever's missing.
+ *
+ * A bare invoice/receipt photo or PDF (no command wording, often no text at
+ * all) is classified by media-intake.ts and starts this same flow via
+ * startCostFlowFromInvoice — same prefill-and-ask-what's-missing shape, with
+ * the attachment itself already on hand as the eventual invoicePath (see
+ * FlowData.pendingInvoiceUrl / resolvePendingInvoice).
  *
  * Deliberately a separate file rather than folded into service-flow.ts: the
  * service flow is live, carefully tuned production code (see its own
@@ -53,6 +59,16 @@ interface FlowData {
   amount?: number;
   workDone?: string | null;
   invoicePath?: string | null;
+  /**
+   * An invoice attachment received before the vehicle was known (either the
+   * very first message, classified as an invoice by media-intake.ts before
+   * any registration was resolved, or sent alongside an explicit "add a
+   * cost" trigger). Uploaded and turned into invoicePath by
+   * resolvePendingInvoice as soon as vehicleId is set, so the person is
+   * never asked to resend a file they already sent.
+   */
+  pendingInvoiceUrl?: string;
+  pendingInvoiceContentType?: string;
 }
 
 export interface FlowUser {
@@ -348,10 +364,13 @@ async function findCurrentVehicle(reg: string) {
   return { status: "ok" as const, id: v.id, label: [v.year, v.make, v.model].filter(Boolean).join(" ") || "vehicle" };
 }
 
-/** Turns a free-text message into pre-filled flow data; null if nothing usable was found. */
-async function prefillFromMessage(text: string): Promise<{ data: FlowData; notes: string[] } | null> {
-  const parsed = await parseVehicleCostMessage(text);
-  if (!parsed) return null;
+/**
+ * Turns already-parsed fields (from a free-text message or an invoice
+ * attachment — see ParsedVehicleCost) into pre-filled flow data, resolving
+ * the registration against the fleet. Shared by prefillFromMessage (text)
+ * and startCostFlowFromInvoice (a classified invoice attachment).
+ */
+async function buildPrefill(parsed: ParsedVehicleCost): Promise<{ data: FlowData; notes: string[] }> {
   const data: FlowData = {};
   const notes: string[] = [];
 
@@ -369,9 +388,31 @@ async function prefillFromMessage(text: string): Promise<{ data: FlowData; notes
   if (amount !== null) data.amount = amount;
   if (parsed.workDone) data.workDone = parsed.workDone.slice(0, 300);
 
+  return { data, notes };
+}
+
+/** Turns a free-text message into pre-filled flow data; null if nothing usable was found. */
+async function prefillFromMessage(text: string): Promise<{ data: FlowData; notes: string[] } | null> {
+  const parsed = await parseVehicleCostMessage(text);
+  if (!parsed) return null;
+  const { data, notes } = await buildPrefill(parsed);
   const clean = sanitise(data);
   if (clean.dropped.length) notes.push(`I couldn't use the ${clean.dropped.join(", ")} from your message.`);
   return Object.keys(clean.data).length ? { data: clean.data, notes } : notes.length ? { data: {}, notes } : null;
+}
+
+/**
+ * Downloads and stores a media attachment that arrived before the vehicle
+ * was known, now that vehicleId is set — see FlowData.pendingInvoiceUrl.
+ * Drops the attachment silently on a storage error (wrong type/too big);
+ * that's the same outcome as skipping the invoice question entirely, and
+ * this person never explicitly asked to attach anything in the first place.
+ */
+async function resolvePendingInvoice(data: FlowData): Promise<FlowData> {
+  if (!data.vehicleId || !data.pendingInvoiceUrl || !data.pendingInvoiceContentType) return data;
+  const { pendingInvoiceUrl, pendingInvoiceContentType, ...rest } = data;
+  const stored = await storeInvoice(data.vehicleId, { url: pendingInvoiceUrl, contentType: pendingInvoiceContentType });
+  return { ...rest, invoicePath: stored.path ?? null };
 }
 
 /** Parses a message that looks like it's starting an add-cost flow; null if it isn't one, after all. */
@@ -470,6 +511,50 @@ export async function handleVehicleCostFlow(
   }
 }
 
+/**
+ * Entry point for media-intake.ts: a bare attachment (no "add a cost"
+ * wording, no active flow of either kind) that it classified as an invoice
+ * or receipt. Starts the same flow as the text-triggered path, pre-filled
+ * from the parsed invoice, with the attachment itself already on hand as
+ * the eventual invoicePath — never asks the person to resend what they just
+ * sent. Never returns null: sending a file is as explicit an intent as
+ * typing "add a cost".
+ */
+export async function startCostFlowFromInvoice(
+  phone: string,
+  parsed: ParsedVehicleCost,
+  media: { url: string; contentType: string },
+  user: FlowUser
+): Promise<FlowReply> {
+  if (!canUseFlow(user.role)) {
+    return { text: "Logging a cost needs admin or manager access — ask an admin, or add it in the web app.", skipButton: false };
+  }
+  try {
+    const prefill = await buildPrefill(parsed);
+    const merged: FlowData = {
+      costDate: todayZA(),
+      ...prefill.data,
+      pendingInvoiceUrl: media.url,
+      pendingInvoiceContentType: media.contentType,
+    };
+    const { data: sanitised, dropped } = sanitise(merged);
+    if (!sanitised.costDate) sanitised.costDate = todayZA();
+    const resolved = await resolvePendingInvoice(sanitised);
+    const notes = [...prefill.notes];
+    if (dropped.length) notes.push(`I couldn't use the ${dropped.join(", ")} from the invoice.`);
+
+    const step = nextStep(resolved);
+    const claimed = await claimFlow(phone, step, resolved);
+    if (claimed) return { text: presentFlow(resolved, step, notes), skipButton: step === "work" };
+    // Lost the claim (another flow — this phone's own or the other one — is already active): queue it.
+    await enqueueFlow(phone, step, resolved);
+    return { text: queueAck(resolved.reg), skipButton: false };
+  } catch (err) {
+    console.error("whatsapp add-vehicle-cost: invoice intake failed", err);
+    return { text: 'I couldn\'t process that invoice. Try "add a cost" and enter the details manually.', skipButton: false };
+  }
+}
+
 async function runFlow(
   phone: string,
   text: string,
@@ -490,6 +575,12 @@ async function runFlow(
     }
     const started = await startCostFlow(text, explicit);
     if (!started) return null;
+    // An invoice sent in the very same message as "add a cost": attach it
+    // now rather than asking for it again at the invoice step.
+    if (media) {
+      started.data = await resolvePendingInvoice({ ...started.data, pendingInvoiceUrl: media.url, pendingInvoiceContentType: media.contentType });
+      started.step = nextStep(started.data);
+    }
     const claimed = await claimFlow(phone, started.step, started.data);
     if (claimed) return presentFlow(started.data, started.step, started.notes);
     // Lost the claim to another message for this phone that landed at the same instant: queue instead of clobbering it.
@@ -539,7 +630,8 @@ async function runFlow(
       if (v.status === "none") {
         return retry(`I didn't find a vehicle in the fleet with that registration.${didYouMean(v.suggestions)}`);
       }
-      return ask({ ...data, vehicleId: v.id, reg, vehicle: v.label }, `Found ${reg} — ${v.label}.\n`);
+      const resolved = await resolvePendingInvoice({ ...data, vehicleId: v.id, reg, vehicle: v.label });
+      return ask(resolved, `Found ${reg} — ${v.label}.\n`);
     }
     case "cost_type": {
       const picked = pickCostType(text);
