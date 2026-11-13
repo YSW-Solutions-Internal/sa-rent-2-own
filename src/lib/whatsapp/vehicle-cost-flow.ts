@@ -255,8 +255,19 @@ const describeFilled = (d: FlowData) =>
     .join("\n");
 
 function presentFlow(data: FlowData, step: Step, notes: string[] = []): string {
+  // An invoice attachment can fill every required field right away (its own
+  // registration, type, place, amount and work-done line all parsed, plus
+  // its invoicePath already resolved) — same "jump straight to confirm" case
+  // ask() below handles, just on the very first message instead of a later
+  // answer. Show the full confirm summary and prompt here too, rather than
+  // the ordinary field-by-field recap with nothing to do next.
+  if (step === "confirm") {
+    return [introFor(data.reg), ...notes, `Please check:\n${summary(data as Required<FlowData>)}\n\nSave this cost? Reply YES to save or NO to cancel.`]
+      .filter(Boolean)
+      .join("\n\n");
+  }
   const got = describeFilled(data);
-  return [got ? `${introFor(data.reg)}\n\nFrom your message:\n${got}` : introFor(data.reg), ...notes, step === "confirm" ? "" : QUESTIONS[step]]
+  return [got ? `${introFor(data.reg)}\n\nFrom your message:\n${got}` : introFor(data.reg), ...notes, QUESTIONS[step]]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -618,7 +629,13 @@ async function runFlow(
   const ask = async (d: FlowData, prefix = "") => {
     const next = nextStep(d);
     await saveFlow(flow.id, next, d);
-    return `${prefix}${next === "confirm" ? "" : QUESTIONS[next]}`;
+    // Normally only the "invoice" case below lands here, since it's the
+    // last question before confirm — but an invoice attachment resolved
+    // early (see resolvePendingInvoice) can make any other step the last
+    // one filled, skipping "invoice" entirely. Render the same confirm
+    // summary either way, rather than silently returning nothing.
+    if (next === "confirm") return `${prefix}Please check:\n${summary(d as Required<FlowData>)}\n\nSave this cost? Reply YES to save or NO to cancel.`;
+    return `${prefix}${QUESTIONS[next]}`;
   };
   const retry = (error: string) => `${error}\n${step === "confirm" ? "" : QUESTIONS[step]}`.trim();
 
