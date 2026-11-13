@@ -16,6 +16,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Unique migration timestamps
+        run: |
+          dupes="$(ls supabase/migrations | cut -d_ -f1 | sort | uniq -d)"
+          if [ -n "$dupes" ]; then
+            echo "Two migration files share a timestamp: $dupes. Re-create yours with 'supabase migration new'." >&2
+            exit 1
+          fi
+
       - run: npm ci
 
       - name: Typecheck
@@ -29,3 +37,53 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Proves supabase/preview/mask.sql leaves no real client data behind (see docs/adr/0001).
+  mask-test:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start database with all migrations
+        run: supabase db start
+
+      # preview-refresh.sh loads, masks and verifies in ONE transaction (psql -1), so unmasked
+      # data is never committed. These steps run the same way.
+      - name: A failure after loading commits nothing
+        run: |
+          if psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/test-fixtures.sql \
+               -f supabase/preview/mask.sql -c "select 1/0"; then
+            echo "expected the forced error to fail the transaction" >&2
+            exit 1
+          fi
+          n=$(psql "$DB_URL" -tA -c "select count(*) from public.clients")
+          if [ "$n" != "0" ]; then
+            echo "a failed refresh committed $n client rows" >&2
+            exit 1
+          fi
+
+      - name: verify-mask rejects unmasked data, and nothing is committed
+        run: |
+          if psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/test-fixtures.sql \
+               -f supabase/preview/verify-mask.sql; then
+            echo "verify-mask.sql passed on unmasked data" >&2
+            exit 1
+          fi
+          n=$(psql "$DB_URL" -tA -c "select count(*) from public.clients")
+          [ "$n" = "0" ] || { echo "unmasked rows were committed: $n" >&2; exit 1; }
+
+      - name: Load, mask and verify in one transaction
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/test-fixtures.sql \
+            -f supabase/preview/mask.sql -f supabase/preview/verify-mask.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/verify-mask.sql
+
+      - name: Mask is safe to re-run
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/mask.sql -f supabase/preview/verify-mask.sql

@@ -1,0 +1,45 @@
+name: Preview Refresh
+
+# Copies masked prod data into a PR's Supabase preview branch database (docs/adr/0001).
+# Runs when a PR opens; run it by hand (Actions → Preview Refresh → Run workflow) to reset the
+# branch database from the current migrations and reload the data, e.g. after fixing a migration.
+on:
+  pull_request:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: The PR's git branch, e.g. feat/service-reminders
+        required: true
+
+concurrency:
+  group: preview-refresh-${{ github.head_ref || inputs.branch }}
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+      PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install Postgres 17 client
+        run: |
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Refresh preview data
+        env:
+          BRANCH: ${{ github.head_ref || inputs.branch }}
+          RESET: ${{ github.event_name == 'workflow_dispatch' && '--reset' || '' }}
+        run: bash scripts/preview-refresh.sh "$BRANCH" $RESET
