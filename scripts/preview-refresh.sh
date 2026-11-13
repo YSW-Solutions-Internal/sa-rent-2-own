@@ -166,6 +166,9 @@ psql "$BRANCH_DB_URL" -v ON_ERROR_STOP=1 -q -1 \
         if not exists (select 1 from public.clients) or not exists (select 1 from public.vehicles) then
           raise exception 'refresh loaded no clients or no vehicles: the prod dump was empty or did not load';
         end if;
+        if not has_table_privilege('authenticated', 'public.profiles', 'select') then
+          raise exception 'logged-in users cannot read public.profiles on this branch, so nobody could use the app: a migration is missing grants for the API roles';
+        end if;
       end \$\$;" \
   -f supabase/preview/mask.sql \
   -f supabase/preview/verify-mask.sql
