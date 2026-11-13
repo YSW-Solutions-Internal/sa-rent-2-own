@@ -79,7 +79,11 @@ export async function noticeSentRecently(phone: string): Promise<boolean> {
 /**
  * The recent question/answer pairs with this number (last 30 minutes), oldest
  * first, so a follow-up like "and its service date?" has context. Only
- * answered questions and the answers to them; notices and errors are left out.
+ * answered questions and the answers to them; notices and errors are left
+ * out — as is a blank body (e.g. a captionless media message logged before
+ * it had anything to say, or one that got no reply at all): Claude's API
+ * rejects a message with empty content outright, and an empty turn carries
+ * no context anyway.
  */
 export async function recentConversation(phone: string, excludeId: string) {
   const db = createAdminClient();
@@ -93,7 +97,7 @@ export async function recentConversation(phone: string, excludeId: string) {
     .order("created_at", { ascending: false })
     .limit(MEMORY_MAX_MESSAGES);
 
-  const rows = (data ?? []).reverse();
+  const rows = (data ?? []).filter((r) => r.body.trim()).reverse();
   while (rows.length && rows[0].direction !== "in") rows.shift(); // must start with a user turn
   return rows.map((r) => ({ role: r.direction === "in" ? ("user" as const) : ("assistant" as const), content: r.body }));
 }
