@@ -15,6 +15,14 @@ release. Why it works this way: [docs/adr/0001-per-pr-preview-databases.md](docs
 5. When CI is green, merge. Migrations run on prod and Vercel deploys. The branch and its preview
    database are deleted.
 
+### Testing before opening a PR
+
+Pushing a new branch makes Supabase create its preview database (schema only, no data). Load
+masked prod data with **Actions → Preview Refresh → Run workflow** and your branch name, then
+point `.env.local` at the branch. If no branch appears under Supabase → Branches, open a draft PR
+or create it there with **Create branch**. A branch database costs about $0.32/day until the git
+branch is merged or deleted, so delete abandoned branches.
+
 ## Database changes
 
 - Only through migration files: `npx supabase migration new <name>`, then write the SQL in the
