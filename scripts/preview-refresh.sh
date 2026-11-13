@@ -74,14 +74,20 @@ if [[ "$BRANCH_REF" == "$SUPABASE_PROD_PROJECT_REF" ]]; then
   exit 1
 fi
 
-# Branch connection: same session pooler host as prod (branches live in prod's region; the
-# direct db.<ref> host is IPv6-only, which GitHub runners can't reach), the branch's own user and
-# password from the API.
+# Branch connection: through a session pooler (the direct db.<ref> host is IPv6-only, which GitHub
+# runners can't reach), with the branch's own user and password from the API. Branches live in
+# prod's region but not always on prod's pooler cluster (aws-0-… vs aws-1-…), and a new branch
+# takes a moment to be registered with its pooler, so try both clusters until one accepts.
 POOLER_HOST="$(sed -n 's|^postgres\(ql\)\{0,1\}://.*@\([^/@]*pooler\.supabase\.com:[0-9]*\)/.*$|\2|p' <<<"$PROD_DB_URL")"
 if [[ -z "$POOLER_HOST" ]]; then
   echo "PROD_DB_URL must be prod's Session pooler connection string (…@…pooler.supabase.com:5432/postgres)" >&2
   exit 1
 fi
+case "$POOLER_HOST" in
+  aws-0-*) OTHER_POOLER_HOST="aws-1-${POOLER_HOST#aws-0-}" ;;
+  aws-1-*) OTHER_POOLER_HOST="aws-0-${POOLER_HOST#aws-1-}" ;;
+  *) OTHER_POOLER_HOST="" ;;
+esac
 CONFIG="$(api "/branches/$BRANCH_REF")"
 DB_PASS="$(jq -r '.db_pass // empty | @uri' <<<"$CONFIG")"
 if [[ -z "$DB_PASS" ]]; then
@@ -89,7 +95,24 @@ if [[ -z "$DB_PASS" ]]; then
   exit 1
 fi
 echo "::add-mask::$DB_PASS"
-BRANCH_DB_URL="postgresql://postgres.$BRANCH_REF:$DB_PASS@$POOLER_HOST/postgres"
+
+BRANCH_DB_URL=""
+for _ in $(seq 1 15); do
+  for host in "$POOLER_HOST" $OTHER_POOLER_HOST; do
+    candidate="postgresql://postgres.$BRANCH_REF:$DB_PASS@$host/postgres"
+    if LAST_ERROR="$(psql "$candidate" -tA -c "select 1" 2>&1 >/dev/null)"; then
+      BRANCH_DB_URL="$candidate"
+      echo "Connected to branch $BRANCH_REF through $host"
+      break 2
+    fi
+  done
+  sleep 20
+done
+if [[ -z "$BRANCH_DB_URL" ]]; then
+  echo "Could not connect to branch $BRANCH_REF through $POOLER_HOST ${OTHER_POOLER_HOST:+or $OTHER_POOLER_HOST }after 5 min. Last error:" >&2
+  echo "$LAST_ERROR" >&2
+  exit 1
+fi
 
 # 3. Optional reset: rebuild the branch schema from the current migration files.
 if [[ "$RESET" == "--reset" ]]; then
