@@ -6,6 +6,7 @@ import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ContractDetailsDialog, DealNumberButton } from "@/components/contract-details-dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -92,6 +93,7 @@ export function MonthlyReportTable({
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<"all" | PaymentMethod>("all");
   const [missedOnly, setMissedOnly] = useState(false);
   const [openVehicle, setOpenVehicle] = useState<{ id: string; reg: string | null } | null>(null);
+  const [openContract, setOpenContract] = useState<{ id: string; dealNumber: string | null } | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
 
   const searchFn = useCallback(
@@ -363,7 +365,11 @@ export function MonthlyReportTable({
                     </div>
                   </TableCell>
                   <TableCell className={showOutstanding ? FROZEN_DEAL : undefined}>
-                    {row.dealNumber ?? "—"}
+                    <DealNumberButton
+                      dealNumber={row.dealNumber}
+                      contractId={row.contractId}
+                      onOpen={(id, dealNumber) => setOpenContract({ id, dealNumber })}
+                    />
                   </TableCell>
                   <TableCell className={showOutstanding ? FROZEN_CLIENT : undefined} title={row.clientName}>
                     <ClientName name={row.clientName} blacklisted={row.clientBlacklisted} />
@@ -441,6 +447,11 @@ export function MonthlyReportTable({
         vehicleId={openVehicle?.id ?? null}
         reg={openVehicle?.reg ?? null}
         onClose={() => setOpenVehicle(null)}
+      />
+      <ContractDetailsDialog
+        contractId={openContract?.id ?? null}
+        dealNumber={openContract?.dealNumber ?? null}
+        onClose={() => setOpenContract(null)}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ContractDetailsDialog, DealNumberButton } from "@/components/contract-details-dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -76,6 +77,7 @@ export function TransactionsTable({
   const [isPending, startTransition] = useTransition();
   const [isExporting, setIsExporting] = useState(false);
   const [openVehicle, setOpenVehicle] = useState<{ id: string; reg: string | null } | null>(null);
+  const [openContract, setOpenContract] = useState<{ id: string; dealNumber: string | null } | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
   const { widths, setWidths, commitWidths } = useColumnWidths("sar2o:transactions-columns");
   const { headerRowRef, startResize } = useColumnResize(widths, setWidths, commitWidths);
@@ -344,7 +346,17 @@ export function TransactionsTable({
                     </div>
                   </TableCell>
                   <TableCell>{formatDisplayDate(row.transactionDate)}</TableCell>
-                  <TableCell>{row.dealNumber ?? "—"}</TableCell>
+                  <TableCell>
+                    {row.contractId ? (
+                      <DealNumberButton
+                        dealNumber={row.dealNumber}
+                        contractId={row.contractId}
+                        onOpen={(id, dealNumber) => setOpenContract({ id, dealNumber })}
+                      />
+                    ) : (
+                      (row.dealNumber ?? "—")
+                    )}
+                  </TableCell>
                   <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                   <TableCell>
                     <RegButton
@@ -412,6 +424,11 @@ export function TransactionsTable({
         vehicleId={openVehicle?.id ?? null}
         reg={openVehicle?.reg ?? null}
         onClose={() => setOpenVehicle(null)}
+      />
+      <ContractDetailsDialog
+        contractId={openContract?.id ?? null}
+        dealNumber={openContract?.dealNumber ?? null}
+        onClose={() => setOpenContract(null)}
       />
     </div>
   );
