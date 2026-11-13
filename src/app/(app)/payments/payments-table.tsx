@@ -1,9 +1,10 @@
 "use client";
 
 import { ClientName } from "@/components/blacklist-flag";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { ContractDetailsDialog, DealNumberButton } from "@/components/contract-details-dialog";
 import { Input } from "@/components/ui/input";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,6 +22,8 @@ function formatRand(amount: number): string {
 }
 
 export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
+  const [openContract, setOpenContract] = useState<{ id: string; dealNumber: string | null } | null>(null);
+
   const searchFn = useCallback(
     (row: ContractPaymentSummaryRow, query: string) =>
       [row.dealNumber ?? "", row.clientName].some((value) => value.toLowerCase().includes(query)),
@@ -138,7 +141,13 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
             ) : (
               filteredRows.map((row) => (
                 <TableRow key={row.contractId}>
-                  <TableCell>{row.dealNumber ?? "—"}</TableCell>
+                  <TableCell>
+                    <DealNumberButton
+                      dealNumber={row.dealNumber}
+                      contractId={row.contractId}
+                      onOpen={(id, dealNumber) => setOpenContract({ id, dealNumber })}
+                    />
+                  </TableCell>
                   <TableCell><ClientName name={row.clientName} blacklisted={row.clientBlacklisted} /></TableCell>
                   <TableCell>{formatDisplayDate(row.lastTransactionDate)}</TableCell>
                   <TableCell>
@@ -159,6 +168,12 @@ export function PaymentsTable({ rows }: { rows: ContractPaymentSummaryRow[] }) {
           </TableBody>
         </Table>
       </div>
+
+      <ContractDetailsDialog
+        contractId={openContract?.id ?? null}
+        dealNumber={openContract?.dealNumber ?? null}
+        onClose={() => setOpenContract(null)}
+      />
     </div>
   );
 }
