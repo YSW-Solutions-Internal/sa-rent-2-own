@@ -10,7 +10,9 @@ release. Why it works this way: [docs/adr/0001-per-pr-preview-databases.md](docs
 2. Push and open a **draft PR** straight away. Supabase creates your preview database, then the
    "Preview Refresh" action copies masked prod data into it. Vercel posts the preview URL on the PR.
 3. Point your `.env.local` at your branch's database (Supabase dashboard → Branches → your
-   branch → Connect), using `.env.example` as the template. **Never point localhost at prod.**
+   branch → Connect), using `.env.example` as the template. **Never point localhost at prod:**
+   `npm run dev` and the `scripts/*.mjs` scripts refuse to run against it. A script you really
+   mean to run on prod needs `ALLOW_PROD=1` for that one run.
 4. Build and test, locally and on the preview URL.
 5. When CI is green, merge. Migrations run on prod and Vercel deploys. The branch and its preview
    database are deleted.

@@ -24,6 +24,7 @@
  * database. Always run it first.
  */
 
+import "./guard-prod.mjs";
 import { mkdirSync, readFileSync } from "node:fs";
 
 import { createClient } from "@supabase/supabase-js";

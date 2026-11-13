@@ -36,6 +36,7 @@
  * can't double-insert on a second accidental run.
  */
 
+import "./guard-prod.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const DRY_RUN = process.argv.includes("--dry-run");

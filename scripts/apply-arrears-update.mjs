@@ -7,6 +7,7 @@
 //                   (when different), is_paid_up=false when in arrears, and a notes block with status/arrangement/comment.
 // ENDED CONTRACTS -> per vehicle (by current plate): odometer, and a notes block on its contract with the extension details.
 // Read-only against the database; the SQL it writes is applied by hand after a backup.
+import "./guard-prod.mjs";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 

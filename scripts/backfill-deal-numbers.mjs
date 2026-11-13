@@ -44,6 +44,7 @@
  * it first.
  */
 
+import "./guard-prod.mjs";
 import { readFileSync, mkdirSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import ExcelJS from "exceljs";
