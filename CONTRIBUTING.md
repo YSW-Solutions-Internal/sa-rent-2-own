@@ -9,19 +9,31 @@ release. Why it works this way: [docs/adr/0001-per-pr-preview-databases.md](docs
 1. Branch off `main`: `git switch main && git pull && git switch -c feat/<name>` (or `fix/<name>`).
 2. Push and open a **draft PR** straight away. Supabase creates your preview database, then the
    "Preview Refresh" action copies masked prod data into it. Vercel posts the preview URL on the PR.
-3. Point your `.env.local` at your branch's database (Supabase dashboard → Branches → your
-   branch → Connect), using `.env.example` as the template. **Never point localhost at prod.**
+3. Run `npm run dev`. `.env.local` follows your git branch: each start switches the three
+   Supabase values to the current branch's preview database, so to test a teammate's work, check
+   out their branch and restart. If the branch has no preview database (or the token is missing
+   or expired) it warns and stays on the database already configured, unless that is prod or
+   deleted, which stops it. `npm run env:preview` does the switch without starting the app. Both
+   need your own `SUPABASE_ACCESS_TOKEN` in
+   `.env.local`: a Supabase personal access token scoped to the prod project with Development
+   Branches: Read, API Keys: Read and API Key Secrets: Read, 90-day expiry. It can also read
+   prod's keys, so treat it like the prod database password. Without a token: Supabase dashboard
+   → Branches → your branch → Connect, with `.env.example` as the template.
+   **Never point localhost at prod:**
+   `npm run dev` and the `scripts/*.mjs` scripts refuse to run against it. A script you really
+   mean to run on prod needs `ALLOW_PROD=1` for that one run.
 4. Build and test, locally and on the preview URL.
 5. When CI is green, merge. Migrations run on prod and Vercel deploys. The branch and its preview
    database are deleted.
 
-### Testing before opening a PR
+### When the preview database appears
 
-Pushing a new branch makes Supabase create its preview database (schema only, no data). Load
-masked prod data with **Actions → Preview Refresh → Run workflow** and your branch name, then
-point `.env.local` at the branch. If no branch appears under Supabase → Branches, open a draft PR
-or create it there with **Create branch**. A branch database costs about $0.32/day until the git
-branch is merged or deleted, so delete abandoned branches.
+Supabase creates the preview database when the **PR is opened**, not when the branch is pushed,
+so open the draft PR first; `npm run dev` can't switch to a database that doesn't exist yet. To
+get one without a PR, create it under Supabase → Branches → **Create branch** for your git
+branch, then load masked prod data with **Actions → Preview Refresh → Run workflow** and your
+branch name. A branch database costs about $0.32/day until the git branch is merged or deleted,
+so delete abandoned branches.
 
 ## Database changes
 
@@ -48,7 +60,7 @@ branch is merged or deleted, so delete abandoned branches.
 | Secret | What it is |
 |---|---|
 | `SUPABASE_ACCESS_TOKEN` | Supabase personal access token, scoped to the prod project, permission **Infrastructure and delivery → Development Branches: Read** only. |
-| `SUPABASE_PROD_PROJECT_REF` | Prod's project ID (from its dashboard URL). |
+| `SUPABASE_PROD_PROJECT_REF` | Prod's project ID: only the 20 lowercase letters from its dashboard URL, not the URL itself. |
 | `PROD_DB_URL` | Prod's **Session pooler** connection string, password included. |
 
 **`SUPABASE_ACCESS_TOKEN` expires one year after it was created.** Check the date under Supabase →

@@ -17,6 +17,7 @@
  * is written to the review report instead of guessed at.
  */
 
+import "./guard-prod.mjs";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import xlsx from "xlsx";

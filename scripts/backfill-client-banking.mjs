@@ -34,6 +34,7 @@
  * full account numbers — masked to last 4 digits, same as the app's UI.
  */
 
+import "./guard-prod.mjs";
 import { readFileSync, mkdirSync } from "node:fs";
 import { createCipheriv, randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
