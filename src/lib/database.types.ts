@@ -190,6 +190,7 @@ export interface Database {
           next_service_date: string | null;
           last_serviced_by: string | null;
           tracker_supplier: string | null;
+          tracker_number: string | null;
           tracker_running: TrackerStatus;
           natis_on_file: boolean;
           license_disc_expiry: string | null;
@@ -222,6 +223,7 @@ export interface Database {
           next_service_date?: string | null;
           last_serviced_by?: string | null;
           tracker_supplier?: string | null;
+          tracker_number?: string | null;
           tracker_running?: TrackerStatus;
           natis_on_file?: boolean;
           license_disc_expiry?: string | null;
@@ -344,6 +346,21 @@ export interface Database {
           billing_direction: BillingDirection;
           billing_frequency: BillingFrequency;
           billing_status: BillingStatus;
+          annual_escalation_pct: number | null;
+          startup_fee_total: number | null;
+          startup_fee_account_admin_monthly: number | null;
+          startup_fee_credit_bureau: number | null;
+          startup_fee_gps_monthly: number | null;
+          startup_fee_gps_unit_installation: number | null;
+          startup_fee_initiation: number | null;
+          startup_fee_pre_delivery_valet: number | null;
+          startup_fee_registration_license: number | null;
+          monthly_km_allowance: number | null;
+          excess_km_rate: number | null;
+          motor_plan: string | null;
+          product_name: string | null;
+          expected_end_value_inc_vat: number | null;
+          agreement_file_path: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -369,10 +386,51 @@ export interface Database {
           billing_direction?: BillingDirection;
           billing_frequency?: BillingFrequency;
           billing_status?: BillingStatus;
+          annual_escalation_pct?: number | null;
+          startup_fee_total?: number | null;
+          startup_fee_account_admin_monthly?: number | null;
+          startup_fee_credit_bureau?: number | null;
+          startup_fee_gps_monthly?: number | null;
+          startup_fee_gps_unit_installation?: number | null;
+          startup_fee_initiation?: number | null;
+          startup_fee_pre_delivery_valet?: number | null;
+          startup_fee_registration_license?: number | null;
+          monthly_km_allowance?: number | null;
+          excess_km_rate?: number | null;
+          motor_plan?: string | null;
+          product_name?: string | null;
+          expected_end_value_inc_vat?: number | null;
+          agreement_file_path?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["contracts"]["Insert"]>;
+        Relationships: [];
+      };
+      contract_clause_templates: {
+        Row: {
+          id: string;
+          category: string;
+          clause_key: string;
+          sort_order: number;
+          heading: string;
+          body: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          category: string;
+          clause_key: string;
+          sort_order: number;
+          heading: string;
+          body: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["contract_clause_templates"]["Insert"]>;
         Relationships: [];
       };
       contract_vehicle_assignments: {
@@ -442,6 +500,7 @@ export interface Database {
           reversal_reference: string | null;
           reversed_transaction_id: string | null;
           source: string;
+          payment_method: PaymentMethod | null;
           created_at: string;
         };
         Insert: {
@@ -456,6 +515,7 @@ export interface Database {
           reversal_reference?: string | null;
           reversed_transaction_id?: string | null;
           source?: string;
+          payment_method?: PaymentMethod | null;
           created_at?: string;
         };
         Update: Partial<
@@ -679,6 +739,19 @@ export interface Database {
       };
     };
     Functions: {
+      whatsapp_save_vehicle_cost: {
+        Args: {
+          p_user: string;
+          p_vehicle: string;
+          p_cost_type: VehicleCostType;
+          p_cost_date: string;
+          p_supplier: string;
+          p_amount: number;
+          p_work_done: string | null;
+          p_invoice: string | null;
+        };
+        Returns: undefined;
+      };
       whatsapp_save_service: {
         Args: {
           p_user: string;

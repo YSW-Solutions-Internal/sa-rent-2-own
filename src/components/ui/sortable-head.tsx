@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
+import { ColumnResizeHandle } from "@/components/ui/column-resize-handle";
 import { TableHead } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,8 @@ export function SortableHead<T extends string>({
   direction,
   onSort,
   className,
+  width,
+  onResizeStart,
 }: {
   label: string;
   sortKey: T;
@@ -19,12 +22,18 @@ export function SortableHead<T extends string>({
   direction: "asc" | "desc";
   onSort: (key: T) => void;
   className?: string;
+  width?: number;
+  onResizeStart?: (e: React.PointerEvent) => void;
 }) {
   const isActive = activeKey === sortKey;
   const Icon = isActive ? (direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
 
   return (
-    <TableHead className={className}>
+    <TableHead
+      data-column-id={sortKey}
+      style={{ width, minWidth: width }}
+      className={cn("relative", className)}
+    >
       <button
         type="button"
         onClick={() => onSort(sortKey)}
@@ -36,6 +45,7 @@ export function SortableHead<T extends string>({
         {label}
         <Icon className="size-3.5" />
       </button>
+      {onResizeStart && <ColumnResizeHandle label={label} onPointerDown={onResizeStart} />}
     </TableHead>
   );
 }

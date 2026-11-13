@@ -16,7 +16,8 @@ const rand = (n: number) =>
 const yesNo = (v: boolean) => (v ? "Yes" : "No");
 const km = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("en-ZA")} km`);
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** Shared with contract-details-dialog.tsx — the same label/value layout for any read-only summary popup. */
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-muted-foreground text-xs">{label}</dt>
@@ -25,7 +26,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
       <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{title}</h3>

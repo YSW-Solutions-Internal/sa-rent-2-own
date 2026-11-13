@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 import { syncVehicleAssignment } from "@/lib/vehicle-assignments";
+import { generateContractAgreement } from "./agreement-actions";
+import { DEAL_NUMBER_SCHEMES, nextDealNumber } from "./deal-number";
 import { contractFormSchema, type ContractFormValues } from "./schema";
 
 export interface ActionResult {
@@ -55,22 +57,11 @@ async function generateStatementTag(
   return `${base}${n}`;
 }
 
-/** Auto-generated deal-number scheme per contract type: fixed prefix plus a
- * fixed suffix letter (MAD numbers have always carried one — item 40 — the
- * client wants new ones to always get "S", regardless of what suffix any
- * existing MAD number happens to have). "other" has no scheme and keeps
- * `deal_number` blank unless set by hand on the (edit-only) form field. */
-const DEAL_NUMBER_SCHEMES: Partial<Record<ContractFormValues["contractType"], { prefix: string; suffix: string }>> = {
-  rent_to_own: { prefix: "MAD", suffix: "S" },
-  short_term_rental: { prefix: "STR", suffix: "" },
-  rental: { prefix: "LTR", suffix: "" },
-};
-
-/** Next deal number for a new contract of this type: the largest existing
- * number for the scheme's prefix (any trailing letter, any padding — same
- * normalisation as the legacy MAD-number backfills), +1, zero-padded to 7
- * digits (matching the existing MAD/STR convention), with the scheme's own
- * fixed suffix appended. */
+/** Next deal number for a new contract of this type, or null for a
+ * contract type with no numbering scheme (e.g. "other"). The actual
+ * number-crunching is pure and lives in deal-number.ts (unit-tested there)
+ * — a "use server" file can only export async functions, so it can't live
+ * here. */
 async function generateDealNumber(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   contractType: ContractFormValues["contractType"]
@@ -84,14 +75,22 @@ async function generateDealNumber(
     .ilike("deal_number", `${scheme.prefix}%`)
     .limit(5000);
 
-  const pattern = new RegExp(`^${scheme.prefix}0*(\\d+)[A-Za-z]*$`, "i");
-  let max = 0;
-  for (const row of existing ?? []) {
-    const match = row.deal_number?.match(pattern);
-    if (match) max = Math.max(max, Number(match[1]));
-  }
+  return nextDealNumber((existing ?? []).map((r) => r.deal_number), scheme);
+}
 
-  return `${scheme.prefix}${String(max + 1).padStart(7, "0")}${scheme.suffix}`;
+/** Read-only preview of the deal number a new contract of this type would
+ * get right now, shown in the "Add contract" form before anything is
+ * saved. Best-effort: the real number is only locked in at insert time
+ * (createContract retries on a collision), so two people creating a
+ * contract of the same type at nearly the same moment could both be shown
+ * the same preview, with the second actually getting the next one after
+ * it. */
+export async function previewDealNumber(
+  contractType: ContractFormValues["contractType"]
+): Promise<{ dealNumber: string | null }> {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  return { dealNumber: await generateDealNumber(supabase, contractType) };
 }
 
 async function toContractRow(
@@ -181,6 +180,17 @@ export async function createContract(raw: ContractFormValues): Promise<ActionRes
   const syncError = await syncVehicleAssignment(supabase, contract.id, values.vehicleId, values.startDate);
   if (syncError) {
     return { error: `Contract created, but ${syncError.charAt(0).toLowerCase()}${syncError.slice(1)}` };
+  }
+
+  // Best-effort: the agreement PDF is a convenience, not core contract
+  // data, so a failure here (missing template, render error, storage
+  // outage) must not fail contract creation - generateContractAgreement
+  // can be retried later from the UI once agreement_file_path is seen to
+  // be empty.
+  try {
+    await generateContractAgreement(contract.id);
+  } catch {
+    // Swallowed deliberately - see comment above.
   }
 
   revalidatePath("/contracts");

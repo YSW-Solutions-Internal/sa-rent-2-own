@@ -29,7 +29,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/contra
       supabase
         .from("contracts")
         .select(
-          "id, vehicle_id, client_id, contract_type, status, start_date, end_date, payment_method, installment_amount, residual_value, total_collected, outstanding_balance, arrears_amount, is_paid_up, notes, deal_number, statement_tag, billing_day, billing_direction, billing_frequency, billing_status"
+          "id, vehicle_id, client_id, contract_type, status, start_date, end_date, payment_method, installment_amount, residual_value, total_collected, outstanding_balance, arrears_amount, is_paid_up, notes, deal_number, statement_tag, billing_day, billing_direction, billing_frequency, billing_status, agreement_file_path"
         )
         .order("start_date", { ascending: false }),
       supabase.from("vehicles").select("id, file_no, make, model, year, status, next_service_date"),

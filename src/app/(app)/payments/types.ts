@@ -68,6 +68,7 @@ export interface TransactionsFilters {
 
 export interface PaymentTransactionRow {
   id: string;
+  contractId: string | null;
   transactionDate: string;
   dealNumber: string | null;
   clientName: string;

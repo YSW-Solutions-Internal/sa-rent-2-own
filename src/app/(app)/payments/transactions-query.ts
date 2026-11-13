@@ -68,6 +68,7 @@ export function buildTransactionsQuery(
 export function toTransactionRow(
   row: {
     id: string;
+    contract_id: string | null;
     transaction_date: string;
     deal_number: string | null;
     client_name: string | null;
@@ -83,6 +84,7 @@ export function toTransactionRow(
 ): PaymentTransactionRow {
   return {
     id: row.id,
+    contractId: row.contract_id,
     transactionDate: row.transaction_date,
     dealNumber: row.deal_number,
     clientName: row.client_name ?? "Unknown client",

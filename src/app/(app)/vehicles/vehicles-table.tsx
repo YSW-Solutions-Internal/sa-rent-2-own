@@ -1,6 +1,7 @@
 "use client";
 
 import { ClientName } from "@/components/blacklist-flag";
+import { cn } from "@/lib/utils";
 import { memo, useCallback, useMemo, useRef, useState, useTransition } from "react";
 import {
   DndContext,
@@ -34,6 +35,7 @@ import { daysUntil, formatDayCount, formatDisplayDate, isoDaysFromNow } from "@/
 import { dueDateColorScale, dueDateExcelChip } from "@/lib/due-date-color";
 import type { ExportColumn } from "@/lib/export-to-excel";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnResize } from "@/lib/use-column-resize";
 import { copyNodeAsImage } from "@/lib/copy-as-image";
 import {
   FLEET_STATUSES,
@@ -56,7 +58,7 @@ import type { ContractStatus, ContractType, PaymentMethod, TrackerStatus, Vehicl
 import { vehicleStatusValues } from "./schema";
 import { updateVehicleColour, updateVehicleStatus } from "./actions";
 import { InlineEditCell } from "./inline-edit-cell";
-import { VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
+import { RegButton, VehicleDetailsDialog } from "@/components/vehicle-details-dialog";
 import { VehiclePanel } from "./vehicle-panel";
 import { AddCostDialog } from "./add-cost-dialog";
 import type { VehicleWithRegistration } from "./types";
@@ -362,6 +364,7 @@ type ColumnId =
   | "lastServicedBy"
   | "trackerRunning"
   | "trackerSupplier"
+  | "trackerNumber"
   | "natis"
   | "spareKey"
   | "contractFile"
@@ -402,6 +405,7 @@ const DEFAULT_COLUMN_ORDER: ColumnId[] = [
   "lastServicedBy",
   "trackerRunning",
   "trackerSupplier",
+  "trackerNumber",
   "natis",
   "spareKey",
   "contractFile",
@@ -431,6 +435,7 @@ const DEFAULT_HIDDEN_COLUMNS: ColumnId[] = [
   "lastServicedBy",
   "trackerRunning",
   "trackerSupplier",
+  "trackerNumber",
   "natis",
   "spareKey",
   "contractFile",
@@ -472,6 +477,7 @@ const COLUMN_LABELS: Record<ColumnId, string> = {
   lastServicedBy: "Last serviced by",
   trackerRunning: "Tracker running",
   trackerSupplier: "Tracker supplier",
+  trackerNumber: "Tracker number",
   natis: "NATIS",
   spareKey: "Spare key",
   contractFile: "Contract on file",
@@ -511,10 +517,17 @@ const MANAGER_ONLY_COLUMNS = new Set<ColumnId>([
   "paidUp",
 ]);
 
-function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManage: boolean) {
+function renderCell(
+  column: ColumnId,
+  vehicle: VehicleWithRegistration,
+  canManage: boolean,
+  onOpenVehicle: (id: string) => void = () => {}
+) {
   switch (column) {
     case "reg":
-      return vehicle.current_plate ?? "—";
+      return (
+        <RegButton reg={vehicle.current_plate} vehicleId={vehicle.id} onOpen={(id) => onOpenVehicle(id)} />
+      );
     case "fileNo":
       return vehicle.file_no;
     case "make":
@@ -683,6 +696,8 @@ function renderCell(column: ColumnId, vehicle: VehicleWithRegistration, canManag
       ) : (
         (vehicle.tracker_supplier ?? "—")
       );
+    case "trackerNumber":
+      return vehicle.tracker_number ?? "—";
     case "natis":
       return vehicle.natis_on_file ? "On file" : "Missing";
     case "spareKey":
@@ -766,6 +781,8 @@ function exportValue(column: ColumnId, vehicle: VehicleWithRegistration): string
       return TRACKER_LABELS[vehicle.tracker_running];
     case "trackerSupplier":
       return vehicle.tracker_supplier ?? "";
+    case "trackerNumber":
+      return vehicle.tracker_number ?? "";
     case "natis":
       return vehicle.natis_on_file ? "On file" : "Missing";
     case "spareKey":
@@ -813,6 +830,7 @@ const VehicleRow = memo(function VehicleRow({
   onToggleSelected,
   onEdit,
   onAddCost,
+  onOpenVehicle,
 }: {
   vehicle: VehicleWithRegistration;
   index: number;
@@ -822,12 +840,20 @@ const VehicleRow = memo(function VehicleRow({
   onToggleSelected: (id: string) => void;
   onEdit: (id: string) => void;
   onAddCost: (id: string) => void;
+  onOpenVehicle: (id: string) => void;
 }) {
   const columns = useMemo(() => columnsKey.split("|") as ColumnId[], [columnsKey]);
 
+  const isStr = vehicle.status === "str";
+
   return (
-    <TableRow>
-      <TableCell className="sticky left-0 z-10 w-20 border-r bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
+    <TableRow className={isStr ? "bg-muted/70" : undefined}>
+      <TableCell
+        className={cn(
+          "sticky left-0 z-10 w-20 border-r group-hover:bg-muted group-data-[state=selected]:bg-muted",
+          isStr ? "bg-muted/70" : "bg-background"
+        )}
+      >
         <div className="flex items-center gap-2">
           <Checkbox
             checked={isSelected}
@@ -839,11 +865,16 @@ const VehicleRow = memo(function VehicleRow({
       </TableCell>
       {columns.map((column) => (
         <TableCell key={column} className={column === "reg" ? "font-medium" : undefined}>
-          {renderCell(column, vehicle, canManage)}
+          {renderCell(column, vehicle, canManage, onOpenVehicle)}
         </TableCell>
       ))}
       {canManage && (
-        <TableCell className="sticky right-0 z-10 w-20 border-l bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted">
+        <TableCell
+          className={cn(
+            "sticky right-0 z-10 w-20 border-l group-hover:bg-muted group-data-[state=selected]:bg-muted",
+            isStr ? "bg-muted/70" : "bg-background"
+          )}
+        >
           <div className="flex items-center justify-end gap-1">
             <Button
               type="button"
@@ -936,6 +967,12 @@ export function VehiclesTable({
     (vehicleId: string) => setPanel((prev) => ({ vehicleId, open: true, openCount: (prev?.openCount ?? 0) + 1 })),
     []
   );
+  // Clicking a reg opens the edit panel for admins, or the read-only summary
+  // (same popup the Payments tables use) for everyone else.
+  const openVehicle = useCallback(
+    (vehicleId: string) => (canManage ? openPanel(vehicleId) : setSummaryVehicleId(vehicleId)),
+    [canManage, openPanel]
+  );
   const panelVehicle = panel ? rows.find((r) => r.id === panel.vehicleId) : undefined;
   const captureRef = useRef<HTMLDivElement>(null);
 
@@ -987,11 +1024,12 @@ export function VehiclesTable({
     });
   }
 
-  const { order, isHidden, reorder, toggleHidden, reset } = useColumnOrder(
+  const { order, isHidden, reorder, toggleHidden, reset, widths, setWidths, commitWidths } = useColumnOrder(
     "sar2o:vehicles-columns",
     DEFAULT_COLUMN_ORDER,
     DEFAULT_HIDDEN_COLUMNS
   );
+  const { headerRowRef, startResize } = useColumnResize(widths, setWidths, commitWidths);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1072,6 +1110,7 @@ export function VehiclesTable({
     lastServicedBy: (a, b) => compareStrings(a.last_serviced_by, b.last_serviced_by),
     trackerRunning: (a, b) => compareStrings(a.tracker_running, b.tracker_running),
     trackerSupplier: (a, b) => compareStrings(a.tracker_supplier, b.tracker_supplier),
+    trackerNumber: (a, b) => compareStrings(a.tracker_number, b.tracker_number),
     natis: (a, b) => compareNumbers(Number(a.natis_on_file), Number(b.natis_on_file)),
     spareKey: (a, b) => compareNumbers(Number(a.has_spare_key), Number(b.has_spare_key)),
     contractFile: (a, b) => compareNumbers(Number(a.has_contract_file), Number(b.has_contract_file)),
@@ -1332,9 +1371,9 @@ export function VehiclesTable({
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <Table containerClassName="overflow-x-visible">
+          <Table containerClassName="overflow-x-visible" className={Object.keys(widths).length > 0 ? "table-fixed" : undefined}>
             <TableHeader className="bg-background sticky top-0 z-20">
-              <TableRow>
+              <TableRow ref={headerRowRef}>
                 <TableHead className="sticky left-0 z-20 w-20 border-r bg-muted">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -1355,6 +1394,8 @@ export function VehiclesTable({
                       activeKey={sortKey}
                       direction={sortDir}
                       onSort={onSort}
+                      width={widths[column]}
+                      onResizeStart={startResize(column)}
                     />
                   ))}
                 </SortableContext>
@@ -1373,6 +1414,7 @@ export function VehiclesTable({
                   onToggleSelected={toggleRowSelected}
                   onEdit={openPanel}
                   onAddCost={setCostVehicleId}
+                  onOpenVehicle={openVehicle}
                 />
               ))}
               {filteredRows.length === 0 && (
@@ -1435,7 +1477,7 @@ export function VehiclesTable({
             </TableHeader>
             <TableBody>
               {selectedRows.map((vehicle) => (
-                <TableRow key={vehicle.id}>
+                <TableRow key={vehicle.id} className={vehicle.status === "str" ? "bg-muted/70" : undefined}>
                   {visibleColumns.map((column) => (
                     <TableCell key={column} className={column === "reg" ? "font-medium" : undefined}>
                       {renderCell(column, vehicle, false)}

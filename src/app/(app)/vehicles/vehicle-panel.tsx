@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BadgeDollarSign, Car, ClipboardList, DollarSign, FileText, Plus, Wrench } from "lucide-react";
+import { BadgeDollarSign, Car, ClipboardList, DollarSign, FileText, History, Plus, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,8 @@ import {
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
 import { VEHICLE_STATUS_LABELS as STATUS_LABELS } from "@/lib/vehicle-status";
+
+import { ActivitySection } from "@/lib/activity-log/activity-section";
 
 import { createVehicle, updateVehicle } from "./actions";
 import { DeleteVehicleButton } from "./delete-vehicle-button";
@@ -75,6 +77,7 @@ function toFormValues(vehicle?: VehicleWithRegistration): VehicleFormValues {
     nextServiceDate: vehicle.next_service_date ?? undefined,
     lastServicedBy: vehicle.last_serviced_by ?? undefined,
     trackerSupplier: vehicle.tracker_supplier ?? undefined,
+    trackerNumber: vehicle.tracker_number ?? undefined,
     trackerRunning: vehicle.tracker_running,
     natisOnFile: vehicle.natis_on_file,
     licenseDiscExpiry: vehicle.license_disc_expiry ?? undefined,
@@ -97,6 +100,7 @@ const FIELD_SECTION: Record<string, VehicleSection> = {
   nextServiceDate: "service",
   lastServicedBy: "service",
   trackerSupplier: "service",
+  trackerNumber: "service",
   trackerRunning: "service",
   licenseDiscExpiry: "compliance",
   warrantyNotes: "compliance",
@@ -201,6 +205,7 @@ export function VehiclePanel({
               ? [
                   { id: "transactions", label: "Transactions", icon: DollarSign },
                   { id: "history", label: "Contract History", icon: FileText },
+                  { id: "activity", label: "Activity", icon: History },
                 ]
               : []),
           ]}
@@ -425,6 +430,19 @@ export function VehiclePanel({
                 />
                 <FormField
                   control={form.control}
+                  name="trackerNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tracker number</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="trackerRunning"
                   render={({ field }) => (
                     <FormItem>
@@ -588,6 +606,9 @@ export function VehiclePanel({
               </PanelModalSection>
               <PanelModalSection id="history" title="Contract History">
                 <VehicleContractHistorySection vehicleId={vehicle!.id} />
+              </PanelModalSection>
+              <PanelModalSection id="activity" title="Activity">
+                <ActivitySection entityType="vehicles" entityId={vehicle!.id} />
               </PanelModalSection>
             </>
           )}

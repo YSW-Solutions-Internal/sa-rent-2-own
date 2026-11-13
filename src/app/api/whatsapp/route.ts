@@ -1,7 +1,9 @@
 import { after } from "next/server";
 
 import { answerQuestion } from "@/lib/whatsapp/bot";
+import { classifyMedia } from "@/lib/whatsapp/media-intake";
 import { handleServiceFlow } from "@/lib/whatsapp/service-flow";
+import { handleVehicleCostFlow, startCostFlowFromInvoice } from "@/lib/whatsapp/vehicle-cost-flow";
 import {
   LIMIT_PER_DAY,
   LIMIT_PER_HOUR,
@@ -70,17 +72,18 @@ async function handleInbound(params: Record<string, string>) {
       return;
     }
 
-    // Guided "Add a service" conversation: scripted, not the model, because it writes data.
+    // Guided "Add a service" / "Add a vehicle cost" conversations: scripted,
+    // not the model, because they write data. Each only recognises its own
+    // flow (see loadActiveFlow in either module), so checking both in order
+    // correctly reaches whichever one actually owns this phone's active row.
     const media =
       Number(params.NumMedia ?? "0") > 0 && params.MediaUrl0
         ? { url: params.MediaUrl0, contentType: params.MediaContentType0 ?? "" }
         : null;
-    const flowReply = await handleServiceFlow(
-      key,
-      question,
-      { id: profile.id, fullName: profile.full_name, role: profile.role },
-      media
-    );
+    const flowUser = { id: profile.id, fullName: profile.full_name, role: profile.role };
+    const flowReply =
+      (await handleServiceFlow(key, question, flowUser, media)) ??
+      (await handleVehicleCostFlow(key, question, flowUser, media));
     if (flowReply !== null) {
       await sendWhatsAppMessage(from, flowReply.text, { skipButton: flowReply.skipButton });
       await recordOutbound({ phone: key, profileId: profile.id, body: flowReply.text, kind: "answer" });
@@ -88,19 +91,63 @@ async function handleInbound(params: Record<string, string>) {
       return;
     }
 
+    const botCtx = { role: profile.role, financeEnabled: profile.whatsapp_finance_enabled };
+
+    // A bare attachment neither scripted flow claimed: figure out whether
+    // it's an invoice/receipt to log as a cost, or a photo of a vehicle
+    // someone wants info on (see media-intake.ts). Classification failing
+    // (unsupported file type, or the model call itself failing) falls
+    // through to the plain text handling below, same as before this existed.
+    if (media) {
+      const classified = await classifyMedia(media);
+      if (classified?.kind === "invoice") {
+        const reply = await startCostFlowFromInvoice(key, classified.data, media, flowUser);
+        await sendWhatsAppMessage(from, reply.text, { skipButton: reply.skipButton });
+        await recordOutbound({ phone: key, profileId: profile.id, body: reply.text, kind: "answer" });
+        await markInbound(inboundId, "answered", profile.id);
+        return;
+      }
+      if (classified?.kind === "vehicle_photo") {
+        const history = await recentConversation(key, inboundId);
+        const asked = question
+          ? `${question}\n\n(Attached photo of a vehicle: ${classified.query})`
+          : `Tell me about this vehicle: ${classified.query}`;
+        const reply = await answerQuestion(asked, { fullName: profile.full_name }, botCtx, history);
+        await sendWhatsAppMessage(from, reply);
+        await recordOutbound({ phone: key, profileId: profile.id, body: reply, kind: "answer" });
+        await markInbound(inboundId, "answered", profile.id);
+        return;
+      }
+      if (classified?.kind === "unclear") {
+        // Not the same as the stranger/abuse "notice" path below (this
+        // person is an approved, verified user genuinely trying something),
+        // so reply plainly every time rather than going quiet after one.
+        const text = "I can't tell if that's an invoice to log as a cost, or a vehicle you'd like info on. Send the registration, or resend a clearer photo.";
+        await sendWhatsAppMessage(from, text);
+        await recordOutbound({ phone: key, profileId: profile.id, body: text, kind: "answer" });
+        await markInbound(inboundId, "answered", profile.id);
+        return;
+      }
+    }
+
     if (!question) {
+      // Not the stranger/abuse "notice" throttle (this is an approved user
+      // genuinely trying something unsupported) — reply plainly every time.
+      // A second such message within the same hour as an earlier rejection
+      // or rate-limit notice used to fall silent here while still being
+      // marked "answered", because notice() no-ops once that throttle has
+      // already fired once that hour.
+      if (Number(params.NumMedia ?? "0") > 0) {
+        const text = "I can only read text messages for now.";
+        await sendWhatsAppMessage(from, text);
+        await recordOutbound({ phone: key, profileId: profile.id, body: text, kind: "answer" });
+      }
       await markInbound(inboundId, "answered", profile.id);
-      if (Number(params.NumMedia ?? "0") > 0) await notice("I can only read text messages for now.", profile.id);
       return;
     }
 
     const history = await recentConversation(key, inboundId);
-    const reply = await answerQuestion(
-      question,
-      { fullName: profile.full_name },
-      { role: profile.role, financeEnabled: profile.whatsapp_finance_enabled },
-      history
-    );
+    const reply = await answerQuestion(question, { fullName: profile.full_name }, botCtx, history);
     await sendWhatsAppMessage(from, reply);
     await recordOutbound({ phone: key, profileId: profile.id, body: reply, kind: "answer" });
     await markInbound(inboundId, "answered", profile.id);

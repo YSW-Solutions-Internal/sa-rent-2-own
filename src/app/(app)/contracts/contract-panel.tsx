@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BadgeDollarSign, CircleDollarSign, FileText, Plus, StickyNote } from "lucide-react";
+import { BadgeDollarSign, CircleDollarSign, FileText, History, Plus, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   PanelModalContent,
   PanelModalFooter,
@@ -36,12 +36,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ActivitySection } from "@/lib/activity-log/activity-section";
 import { ClientPanel } from "../clients/client-panel";
 import { VehiclePanel } from "../vehicles/vehicle-panel";
 import { Textarea } from "@/components/ui/textarea";
 import { useControllableOpen } from "@/lib/use-controllable-open";
 
-import { createContract, updateContract } from "./actions";
+import { createContract, previewDealNumber, updateContract } from "./actions";
+import { generateContractAgreement, getStoredAgreementUrl, regenerateAgreementPreview } from "./agreement-actions";
+import { AgreementViewerDialog } from "./agreement-viewer-dialog";
 import {
   billingDirectionValues,
   billingFrequencyValues,
@@ -60,6 +63,18 @@ const CONTRACT_TYPE_LABELS: Record<(typeof contractTypeValues)[number], string> 
   rent_to_own: "Rent-to-own",
   short_term_rental: "Short-term rental",
   rental: "Rental",
+  other: "Other",
+};
+
+/** Labels for the "new contract" type picker and the form title that
+ * follows it specifically -- plainer wording (no hyphens, "Long Term
+ * Rental" spelled out) than CONTRACT_TYPE_LABELS above, which stays as
+ * it is for the edit-mode Contract type dropdown and everywhere else
+ * that shows a contract type. */
+const NEW_CONTRACT_TYPE_LABELS: Record<(typeof contractTypeValues)[number], string> = {
+  rent_to_own: "Rent to own",
+  short_term_rental: "Short term rental",
+  rental: "Long Term Rental",
   other: "Other",
 };
 
@@ -126,7 +141,6 @@ type ContractSection = "deal" | "billing" | "financials" | "notes";
 /** Which section each field lives in (anything not listed is in Deal). */
 const FIELD_SECTION: Record<string, ContractSection> = {
   dealNumber: "billing",
-  statementTag: "billing",
   billingDay: "billing",
   billingDirection: "billing",
   billingFrequency: "billing",
@@ -166,6 +180,82 @@ export function ContractPanel({
   const [newVehicles, setNewVehicles] = useState<SelectableVehicle[]>([]);
   const [newClients, setNewClients] = useState<SelectableClient[]>([]);
 
+  // "Add contract" asks which type first (a mini modal), rather than
+  // leaving it as just another field inside the full form.
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
+  // Best-effort preview of the deal number a new contract would get,
+  // fetched once the type is chosen (see previewDealNumber's own note on
+  // why it's a preview, not a guarantee).
+  const [previewedDealNumber, setPreviewedDealNumber] = useState<string | null>(null);
+  const [dealNumberPreviewFailed, setDealNumberPreviewFailed] = useState(false);
+
+  // Agreement PDF: generated automatically on contract creation (see
+  // createContract), but may still be missing (an old contract from
+  // before this feature, or a first attempt that failed) - in which case
+  // the same button generates it instead of downloading it.
+  const [storedAgreementPath, setStoredAgreementPath] = useState(contract?.agreement_file_path ?? null);
+  const [agreementBusy, setAgreementBusy] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  // Both buttons show the resulting PDF in the same in-app viewer rather
+  // than a new browser tab; the viewer itself offers a "Download" link
+  // as the actual save-to-disk path, named "SAR2O Contract - <deal
+  // number>.pdf" server-side (see agreement-actions.ts).
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerDownloadUrl, setViewerDownloadUrl] = useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = useState("Agreement");
+  const [viewerOpen, setViewerOpen] = useState(false);
+
+  function showPdf(url: string, downloadUrl: string | undefined, title: string) {
+    setViewerUrl(url);
+    setViewerDownloadUrl(downloadUrl ?? url);
+    setViewerTitle(title);
+    setViewerOpen(true);
+  }
+
+  async function handleAgreementButton() {
+    if (!contract) return;
+    setAgreementBusy(true);
+    try {
+      let path = storedAgreementPath;
+      if (!path) {
+        const generated = await generateContractAgreement(contract.id);
+        if (generated.error) {
+          toast.error(generated.error);
+          return;
+        }
+        path = `${contract.id}/agreement.pdf`;
+        setStoredAgreementPath(path);
+      }
+      const result = await getStoredAgreementUrl(path, contract.deal_number);
+      if (result.error || !result.url) {
+        toast.error(result.error ?? "Couldn't open the agreement");
+        return;
+      }
+      showPdf(result.url, result.downloadUrl, `Agreement – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
+    } catch {
+      toast.error("Couldn't open the agreement");
+    } finally {
+      setAgreementBusy(false);
+    }
+  }
+
+  async function handlePreviewAgreement() {
+    if (!contract) return;
+    setPreviewBusy(true);
+    try {
+      const result = await regenerateAgreementPreview(contract.id);
+      if (result.error || !result.url) {
+        toast.error(result.error ?? "Couldn't render a preview");
+        return;
+      }
+      showPdf(result.url, result.downloadUrl, `Preview – ${contract.deal_number ?? contract.vehicleLabel ?? "contract"}`);
+    } catch {
+      toast.error("Couldn't render a preview");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
   const form = useForm<ContractFormValues>({
     resolver: zodResolver(contractFormSchema),
     defaultValues: toFormValues(contract),
@@ -177,6 +267,7 @@ export function ContractPanel({
   const hadVehicle = originalVehicleId !== "";
   const [vehicleMode, setVehicleMode] = useState<"keep" | "change" | "remove">("keep");
   const chosenVehicleId = useWatch({ control: form.control, name: "vehicleId" });
+  const chosenContractType = useWatch({ control: form.control, name: "contractType" });
   // The vehicle on this existing contract will be different once saved.
   const vehicleChanging =
     isEditing &&
@@ -192,6 +283,19 @@ export function ContractPanel({
   function removeVehicle() {
     setVehicleMode("remove");
     form.setValue("vehicleId", "", { shouldDirty: true });
+  }
+  // The type picker's answer becomes the new form's starting contractType,
+  // then opens the real form.
+  function startNewContract(type: (typeof contractTypeValues)[number]) {
+    form.reset({ ...toFormValues(undefined), contractType: type });
+    setVehicleMode("keep");
+    setTypePickerOpen(false);
+    setPreviewedDealNumber(null);
+    setDealNumberPreviewFailed(false);
+    setOpen(true);
+    previewDealNumber(type)
+      .then((result) => setPreviewedDealNumber(result.dealNumber))
+      .catch(() => setDealNumberPreviewFailed(true));
   }
   // A save blocked by validation scrolls to the section holding the first bad field.
   function onInvalid(errors: FieldErrors<ContractFormValues>) {
@@ -251,26 +355,25 @@ export function ContractPanel({
         }
       }}
     >
-      {!isControlled && (
-        <DialogTrigger asChild>
-          {isEditing ? (
+      {!isControlled &&
+        (isEditing ? (
+          <DialogTrigger asChild>
             <Button variant="ghost" size="sm">
               Edit
             </Button>
-          ) : (
-            <Button variant="destructive">
-              <Plus />
-              Add contract
-            </Button>
-          )}
-        </DialogTrigger>
-      )}
+          </DialogTrigger>
+        ) : (
+          <Button variant="destructive" onClick={() => setTypePickerOpen(true)}>
+            <Plus />
+            Add contract
+          </Button>
+        ))}
       <PanelModalContent>
         <PanelModalHeader
           title={
             isEditing
               ? `${readOnly ? "Contract details" : "Edit contract"} – ${contract!.deal_number ?? contract!.vehicleLabel ?? "no deal number"}`
-              : "Add contract"
+              : `Add New ${NEW_CONTRACT_TYPE_LABELS[chosenContractType]} Contract`
           }
         />
         <PanelModalSections
@@ -279,12 +382,32 @@ export function ContractPanel({
             { id: "billing", label: "Billing", icon: CircleDollarSign },
             { id: "financials", label: "Financials", icon: BadgeDollarSign },
             { id: "notes", label: "Notes", icon: StickyNote },
+            ...(isEditing && !readOnly ? [{ id: "activity", label: "Activity", icon: History }] : []),
           ]}
         >
           <Form {...form}>
             <form id="contract-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="contents">
             <fieldset disabled={readOnly} className="contents">
             <PanelModalSection id="deal" title="Deal">
+            {!isEditing && (
+              <p className="text-muted-foreground -mt-1 text-sm">
+                Deal number:{" "}
+                <span className="text-foreground font-medium">
+                  {dealNumberPreviewFailed ? "—" : (previewedDealNumber ?? "Generating…")}
+                </span>
+                {" "}(assigned when you save)
+              </p>
+            )}
+            {isEditing && (
+              <div className="-mt-1 flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={agreementBusy} onClick={handleAgreementButton}>
+                  {agreementBusy ? "Working…" : storedAgreementPath ? "Download agreement" : "Generate agreement"}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" disabled={previewBusy} onClick={handlePreviewAgreement}>
+                  {previewBusy ? "Rendering…" : "Preview with current data"}
+                </Button>
+              </div>
+            )}
             <section className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -434,30 +557,41 @@ export function ContractPanel({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="contractType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contract type</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {contractTypeValues.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {CONTRACT_TYPE_LABELS[t]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {isEditing && (
+                <FormField
+                  control={form.control}
+                  name="contractType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contract type</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => {
+                          field.onChange(v);
+                          // Residual value only applies to rent-to-own — drop a
+                          // stale number rather than silently keep saving it
+                          // once the field itself is hidden.
+                          if (v !== "rent_to_own") form.setValue("residualValue", undefined);
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {contractTypeValues.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {CONTRACT_TYPE_LABELS[t]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="status"
@@ -523,25 +657,6 @@ export function ContractPanel({
                       <FormLabel>Deal number</FormLabel>
                       <FormControl>
                         <Input placeholder="MAD..." {...field} value={field.value ?? ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              {isEditing && (
-                <FormField
-                  control={form.control}
-                  name="statementTag"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Statement tag</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Auto-generated from surname if left blank"
-                          {...field}
-                          value={field.value ?? ""}
-                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -682,19 +797,21 @@ export function ContractPanel({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="residualValue"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Residual value (RV)</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {chosenContractType === "rent_to_own" && (
+                <FormField
+                  control={form.control}
+                  name="residualValue"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Residual value (RV)</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="isPaidUp"
@@ -708,7 +825,9 @@ export function ContractPanel({
                 )}
               />
             </section>
-            {isEditing && <ContractPaymentHistorySection contractId={contract!.id} />}
+            {isEditing && (
+              <ContractPaymentHistorySection contractId={contract!.id} canManage={!readOnly} />
+            )}
             </PanelModalSection>
 
             <PanelModalSection id="notes" title="Notes">
@@ -730,6 +849,11 @@ export function ContractPanel({
             </fieldset>
             </form>
           </Form>
+          {isEditing && !readOnly && (
+            <PanelModalSection id="activity" title="Activity">
+              <ActivitySection entityType="contracts" entityId={contract!.id} />
+            </PanelModalSection>
+          )}
         </PanelModalSections>
         {!readOnly && (
           <PanelModalFooter>
@@ -740,6 +864,31 @@ export function ContractPanel({
         )}
       </PanelModalContent>
     </Dialog>
+    {!isControlled && !isEditing && (
+      <Dialog open={typePickerOpen} onOpenChange={setTypePickerOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New contract</DialogTitle>
+            <DialogDescription>What type of contract is this?</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {contractTypeValues
+              .filter((t) => t !== "other")
+              .map((t) => (
+                <Button
+                  key={t}
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => startNewContract(t)}
+                >
+                  {NEW_CONTRACT_TYPE_LABELS[t]}
+                </Button>
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
     {/* Outside the contract's <form>: React submit events bubble through portals. */}
     {!readOnly && (
       <>
@@ -763,6 +912,13 @@ export function ContractPanel({
         />
       </>
     )}
+    <AgreementViewerDialog
+      open={viewerOpen}
+      onOpenChange={setViewerOpen}
+      url={viewerUrl}
+      downloadUrl={viewerDownloadUrl}
+      title={viewerTitle}
+    />
     </>
   );
 }

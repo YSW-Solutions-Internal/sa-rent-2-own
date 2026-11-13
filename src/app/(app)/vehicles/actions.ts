@@ -42,6 +42,7 @@ function toVehicleRow(values: VehicleFormValues) {
     next_service_date: values.nextServiceDate || null,
     last_serviced_by: values.lastServicedBy || null,
     tracker_supplier: values.trackerSupplier || null,
+    tracker_number: values.trackerNumber || null,
     tracker_running: values.trackerRunning,
     natis_on_file: values.natisOnFile ?? false,
     license_disc_expiry: values.licenseDiscExpiry || null,

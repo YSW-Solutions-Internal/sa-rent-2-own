@@ -1,9 +1,19 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { canSeeFinancials } from "@/lib/auth/permissions";
+import { requireAdmin } from "@/lib/auth/require-role";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
-import type { PaymentTransactionType } from "@/lib/database.types";
+import { recordPayment } from "@/lib/payments/record-payment";
+import type { PaymentMethod, PaymentTransactionType } from "@/lib/database.types";
+
+import { paymentMethodValues } from "./schema";
+
+export interface ActionResult {
+  error?: string;
+}
 
 export interface ContractPaymentHistoryEntry {
   id: string;
@@ -13,6 +23,7 @@ export interface ContractPaymentHistoryEntry {
   invoice_reference: string;
   amount: number;
   cash_effect: number;
+  payment_method: PaymentMethod | null;
   reversed: boolean;
 }
 
@@ -36,7 +47,9 @@ export async function listContractPaymentHistory(
 
   const { data, error } = await supabase
     .from("payment_transactions")
-    .select("id, transaction_date, type, reference, invoice_reference, amount, cash_effect, reversed_transaction_id")
+    .select(
+      "id, transaction_date, type, reference, invoice_reference, amount, cash_effect, payment_method, reversed_transaction_id"
+    )
     .eq("contract_id", contractId)
     .order("transaction_date", { ascending: false });
 
@@ -50,8 +63,47 @@ export async function listContractPaymentHistory(
     invoice_reference: t.invoice_reference,
     amount: t.amount,
     cash_effect: t.cash_effect,
+    payment_method: t.payment_method,
     reversed: t.reversed_transaction_id !== null,
   }));
 
   return { data: rows };
+}
+
+/**
+ * Manually capture a payment against a contract — admin only, same as every
+ * other write to this financial ledger (payment_transactions' own RLS policy
+ * technically allows Fleet Managers too, but the app enforces admin-only in
+ * every mutating action, same as contracts/vehicles/clients).
+ */
+export async function createManualPayment(
+  contractId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const transactionDate = String(formData.get("transactionDate") ?? "");
+  const amount = Number(formData.get("amount"));
+  const paymentMethodRaw = String(formData.get("paymentMethod") ?? "");
+  const reference = String(formData.get("reference") ?? "").trim() || null;
+
+  const paymentMethod = (paymentMethodValues as readonly string[]).includes(paymentMethodRaw)
+    ? (paymentMethodRaw as PaymentMethod)
+    : null;
+
+  const supabase = await createSupabaseServerClient();
+  const result = await recordPayment(supabase, {
+    contractId,
+    transactionDate,
+    amount,
+    paymentMethod,
+    reference,
+    source: "manual",
+  });
+
+  if (result.error) return { error: result.error };
+
+  revalidatePath("/contracts");
+  revalidatePath("/payments");
+  return {};
 }
