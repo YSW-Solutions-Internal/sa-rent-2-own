@@ -53,22 +53,37 @@ jobs:
       - name: Start database with all migrations
         run: supabase db start
 
-      - name: Load realistic fixtures
-        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/test-fixtures.sql
-
-      - name: verify-mask rejects unmasked data
+      # preview-refresh.sh loads, masks and verifies in ONE transaction (psql -1), so unmasked
+      # data is never committed. These steps run the same way.
+      - name: A failure after loading commits nothing
         run: |
-          if psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/verify-mask.sql; then
-            echo "verify-mask.sql passed on unmasked data" >&2
+          if psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/test-fixtures.sql \
+               -f supabase/preview/mask.sql -c "select 1/0"; then
+            echo "expected the forced error to fail the transaction" >&2
+            exit 1
+          fi
+          n=$(psql "$DB_URL" -tA -c "select count(*) from public.clients")
+          if [ "$n" != "0" ]; then
+            echo "a failed refresh committed $n client rows" >&2
             exit 1
           fi
 
-      - name: Mask, then verify
+      - name: verify-mask rejects unmasked data, and nothing is committed
         run: |
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/mask.sql
+          if psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/test-fixtures.sql \
+               -f supabase/preview/verify-mask.sql; then
+            echo "verify-mask.sql passed on unmasked data" >&2
+            exit 1
+          fi
+          n=$(psql "$DB_URL" -tA -c "select count(*) from public.clients")
+          [ "$n" = "0" ] || { echo "unmasked rows were committed: $n" >&2; exit 1; }
+
+      - name: Load, mask and verify in one transaction
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/test-fixtures.sql \
+            -f supabase/preview/mask.sql -f supabase/preview/verify-mask.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/verify-mask.sql
 
       - name: Mask is safe to re-run
         run: |
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/mask.sql
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/preview/verify-mask.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/preview/mask.sql -f supabase/preview/verify-mask.sql
