@@ -6,6 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "predev": "node --env-file-if-exists=.env.local scripts/predev.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
