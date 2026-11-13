@@ -60,7 +60,6 @@ so delete abandoned branches.
 | Secret | What it is |
 |---|---|
 | `SUPABASE_ACCESS_TOKEN` | Supabase personal access token, scoped to the prod project, permission **Infrastructure and delivery → Development Branches: Read** only. |
-| `SUPABASE_PROD_PROJECT_REF` | Prod's project ID (from its dashboard URL). |
 | `PROD_DB_URL` | Prod's **Session pooler** connection string, password included. |
 
 **`SUPABASE_ACCESS_TOKEN` expires one year after it was created.** Check the date under Supabase →

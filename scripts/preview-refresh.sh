@@ -16,7 +16,21 @@ trap 'rm -rf "$WORK"' EXIT
 
 # Supabase Management API. The token only needs "Development Branches: Read".
 API="https://api.supabase.com/v1"
-api() { curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "$API$1"; }
+api() {
+  local out status
+  out="$(curl -sS -w '\n%{http_code}' -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "$API$1")"
+  status="${out##*$'\n'}"
+  if [[ "$status" != 2* ]]; then
+    echo "Supabase API GET $1 failed: HTTP $status: ${out%$'\n'*}" >&2
+    case "$status" in
+      401) echo "SUPABASE_ACCESS_TOKEN is invalid or expired (CONTRIBUTING.md, GitHub secrets)." >&2 ;;
+      403) echo "SUPABASE_ACCESS_TOKEN lacks Development Branches: Read." >&2 ;;
+      404) echo "Supabase does not know this project or branch for this token: check that the token is scoped to the prod project." >&2 ;;
+    esac
+    return 1
+  fi
+  printf '%s' "${out%$'\n'*}"
+}
 
 # 1. Wait for Supabase to finish creating the branch and running its migrations.
 if [[ -n "${PREVIEW_REFRESH_TEST_REF:-}" ]]; then
