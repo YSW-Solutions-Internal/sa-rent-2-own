@@ -261,7 +261,10 @@ otp_expiry = 3600
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
-enable_signup = false
+# Despite the name this is the phone provider's on/off switch: staff log in with phone + password,
+# and preview branches take their auth settings from this file, so false blocks every login on
+# previews. New sign-ups stay off through [auth] enable_signup = false above.
+enable_signup = true
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
 # Template for sending OTP to users
