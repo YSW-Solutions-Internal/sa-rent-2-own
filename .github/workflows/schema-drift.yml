@@ -2,12 +2,13 @@ name: Schema drift check
 
 # Read-only: compares prod's schema with what supabase/migrations/ builds, and prints any
 # difference (e.g. a change pasted into the dashboard that has no migration file).
-# Run by hand: Actions → Schema drift check → Run workflow. Also runs when this file changes, so
-# it can run before it reaches main (GitHub only offers "Run workflow" for files on main).
+# Run by hand: Actions → Schema drift check → Run workflow. Also runs on any push that changes
+# migrations or this file. On a feature branch, differences can also be that branch's own
+# not-yet-released migrations.
 on:
   workflow_dispatch:
   push:
-    paths: [.github/workflows/schema-drift.yml]
+    paths: [.github/workflows/schema-drift.yml, supabase/migrations/**]
 
 jobs:
   diff:
