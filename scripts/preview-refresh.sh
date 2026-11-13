@@ -118,10 +118,26 @@ if [[ -z "$BRANCH_DB_URL" ]]; then
   exit 1
 fi
 
-# 3. Optional reset: rebuild the branch schema from the current migration files.
+# 3. The schema must be in place before loading data. With --reset, rebuild it from this
+# checkout's migration files. Otherwise wait until Supabase has applied every one of them: the
+# API's branch status can say "passed" on a database whose migrations are still running.
+EXPECTED_MIGRATIONS="$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l)"
 if [[ "$RESET" == "--reset" ]]; then
   echo "Resetting branch $BRANCH_REF to the current migrations"
   supabase db reset --db-url "$BRANCH_DB_URL" --no-seed
+else
+  APPLIED=0
+  for _ in $(seq 1 45); do
+    APPLIED="$(psql "$BRANCH_DB_URL" -tA -c "select count(*) from supabase_migrations.schema_migrations" 2>/dev/null || echo 0)"
+    [[ "$APPLIED" -ge "$EXPECTED_MIGRATIONS" ]] && break
+    sleep 20
+  done
+  if [[ "$APPLIED" -lt "$EXPECTED_MIGRATIONS" ]]; then
+    echo "Branch $BRANCH_REF has $APPLIED of $EXPECTED_MIGRATIONS migrations applied after 15 min." >&2
+    echo "A migration probably failed on it: check the Supabase check on the PR, fix the migration, then run Preview Refresh by hand (it resets the branch)." >&2
+    exit 1
+  fi
+  echo "Branch $BRANCH_REF has all $EXPECTED_MIGRATIONS migrations applied"
 fi
 
 # 4. Dump prod data: public schema plus staff logins.
