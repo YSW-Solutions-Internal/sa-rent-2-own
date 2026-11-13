@@ -6,7 +6,10 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /** Link-based tabs (each tab is its own route) styled like the Tabs primitive. Add future admin sections here. */
-const ADMIN_TABS = [{ href: "/admin/users", label: "Users" }] as const;
+const ADMIN_TABS = [
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/contract-clauses", label: "Contract clauses" },
+] as const;
 
 export function AdminTabs() {
   const pathname = usePathname();
