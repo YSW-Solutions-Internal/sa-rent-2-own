@@ -8,10 +8,15 @@ import { RECORD_VEHICLE_COST_TOOL, toParsedVehicleCost, type ParsedVehicleCost }
 /**
  * Classifies a bare attachment (no accompanying question, not claimed by any
  * scripted flow) sent to the WhatsApp bot — e.g. someone photographs an
- * invoice to log a cost, or photographs a vehicle to ask about it. A single
- * forced tool call offers both outcomes (plus a "can't tell" escape hatch) so
- * exactly one is always chosen; the caller routes to the add-vehicle-cost
- * flow, the ordinary read-only Q&A, or a clarifying message accordingly.
+ * invoice to log a cost, or photographs a vehicle to ask about it. Offers
+ * three tools (two outcomes plus a "can't tell" escape hatch) and leans on
+ * the system prompt's "always call exactly one" instruction to get one, the
+ * same way vehicle-cost-parse.ts/service-parse.ts rely on prompt discipline
+ * rather than tool_choice — this model rejects a forced tool_choice
+ * ("any"/"tool") outright (400 invalid_request_error), so tool_choice is
+ * deliberately left at its "auto" default here. No tool_use block in the
+ * response (the model answered in plain text instead) is treated the same
+ * as the model explicitly saying it can't tell — see the `!use` check below.
  */
 
 const MODEL = process.env.WHATSAPP_PARSE_MODEL || "claude-sonnet-5-5";
@@ -83,7 +88,6 @@ export async function classifyMedia(media: { url: string; contentType: string })
       max_tokens: 500,
       system: `A fleet-staff member in South Africa sent this file to the SA Rent 2 Own WhatsApp assistant with no other message. Today is ${today}. It is exactly one of: (1) an invoice, receipt or quote for a non-service vehicle cost — a repair, car wash, maintenance item or other one-off cost, never a scheduled/routine service — call record_vehicle_cost_details; (2) a photo of a vehicle (on the road, in a yard, a close-up of its registration plate, etc.) sent so staff can ask about it — call identify_vehicle_in_photo; (3) anything else, unreadable, or genuinely ambiguous — call cannot_determine. Always call exactly one of these tools, and never guess a field you can't actually read.`,
       tools: [RECORD_VEHICLE_COST_TOOL, IDENTIFY_VEHICLE_TOOL, CANNOT_DETERMINE_TOOL],
-      tool_choice: { type: "any", disable_parallel_tool_use: true },
       messages: [{ role: "user", content: [withData, { type: "text", text: "Classify this attachment." }] }],
     });
 
