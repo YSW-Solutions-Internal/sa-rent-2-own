@@ -44,7 +44,11 @@ else
   BRANCH_REF=""
   for _ in $(seq 1 45); do
     INFO="$(api "/projects/$SUPABASE_PROD_PROJECT_REF/branches" \
-      | jq -c --arg b "$BRANCH" '[.[] | select(.git_branch == $b)][0] // empty')"
+      | jq -c --arg b "$BRANCH" '
+          # Closing and reopening a PR can leave the old branch database (scheduled for
+          # deletion) next to the new one: take the newest that is not being deleted.
+          [.[] | select(.git_branch == $b and .deletion_scheduled_at == null)]
+          | sort_by(.created_at) | last // empty')"
     STATUS=""; HEALTH=""
     if [[ -n "$INFO" ]]; then
       STATUS="$(jq -r '.status // empty' <<<"$INFO")"
@@ -142,6 +146,18 @@ psql "$BRANCH_DB_URL" -v ON_ERROR_STOP=1 -q -1 \
   -f "$WORK/auth.sql" \
   -f "$WORK/public.sql" \
   -c "set session_replication_role = origin" \
+  -c "do \$\$ begin
+        if not exists (select 1 from public.clients) or not exists (select 1 from public.vehicles) then
+          raise exception 'refresh loaded no clients or no vehicles: the prod dump was empty or did not load';
+        end if;
+      end \$\$;" \
   -f supabase/preview/mask.sql \
   -f supabase/preview/verify-mask.sql
-echo "Preview branch $BRANCH refreshed and masked"
+
+echo "Preview branch $BRANCH ($BRANCH_REF) refreshed and masked. Rows now in it:"
+psql "$BRANCH_DB_URL" -v ON_ERROR_STOP=1 -tA -F ' ' -c "
+  select 'clients', count(*) from public.clients
+  union all select 'vehicles', count(*) from public.vehicles
+  union all select 'contracts', count(*) from public.contracts
+  union all select 'payment_transactions', count(*) from public.payment_transactions
+  union all select 'staff logins', count(*) from auth.users"
