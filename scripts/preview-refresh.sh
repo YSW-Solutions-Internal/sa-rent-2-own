@@ -85,9 +85,12 @@ pg_dump "$PROD_DB_URL" --data-only --no-owner --no-privileges --schema=public -f
 pg_dump "$PROD_DB_URL" --data-only --no-owner --no-privileges \
   --table=auth.users --table=auth.identities -f "$WORK/auth.sql"
 
-# 5. Load: clear the branch (rows inserted by migrations would clash), then load with
-# triggers off so FK order, audit and upper-case triggers don't interfere.
-echo "Loading into branch $BRANCH_REF"
+# 5. Clear, load, mask and verify in ONE transaction (psql -1): it commits only if
+# verify-mask.sql passes, so unmasked prod data is never visible in the preview, and any error
+# or cancellation rolls the whole refresh back. The branch is cleared first because rows
+# inserted by migrations would clash; the load runs with triggers off so FK order, audit and
+# upper-case triggers don't interfere, and masking runs with them back on.
+echo "Loading, masking and verifying in one transaction on branch $BRANCH_REF"
 psql "$BRANCH_DB_URL" -v ON_ERROR_STOP=1 -q -1 \
   -c "delete from auth.identities; delete from auth.users;" \
   -c "do \$\$ declare t text; begin
@@ -97,10 +100,7 @@ psql "$BRANCH_DB_URL" -v ON_ERROR_STOP=1 -q -1 \
   -c "set session_replication_role = replica" \
   -f "$WORK/auth.sql" \
   -f "$WORK/public.sql" \
-  -c "set session_replication_role = origin"
-
-# 6. Mask, then prove it.
-echo "Masking"
-psql "$BRANCH_DB_URL" -v ON_ERROR_STOP=1 -q -f supabase/preview/mask.sql
-psql "$BRANCH_DB_URL" -v ON_ERROR_STOP=1 -q -f supabase/preview/verify-mask.sql
+  -c "set session_replication_role = origin" \
+  -f supabase/preview/mask.sql \
+  -f supabase/preview/verify-mask.sql
 echo "Preview branch $BRANCH refreshed and masked"

@@ -2,7 +2,8 @@
 -- (scripts/preview-refresh.sh). Never run against prod. Safe to re-run: each client's fake
 -- values come from its position by id, so a second run writes the same values.
 -- Staff (profiles, auth.users) are left real so everyone can log in and use the WhatsApp sandbox.
-begin;
+-- No BEGIN/COMMIT here: the caller runs load + mask + verify-mask.sql in ONE transaction
+-- (psql -1), so unmasked data is never committed, even if this or the verification fails.
 
 with numbered as (
   select id, row_number() over (order by id) as n from public.clients
@@ -24,5 +25,3 @@ delete from public.whatsapp_messages;
 -- Last: the updates and deletes above write audit rows of their own, and the audit diffs
 -- hold the pre-mask values.
 delete from public.audit_log where table_name in ('clients', 'client_banking_details');
-
-commit;
