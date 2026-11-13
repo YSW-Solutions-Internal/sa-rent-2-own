@@ -65,11 +65,20 @@ const QUESTIONS: Record<Exclude<Step, "confirm">, string> = {
 const START_RE = /\b(add|log|record|capture|enter|new)\s+(a\s+|the\s+|new\s+)*service\b|^\s*service\s+done\b/i;
 /**
  * A statement (not a question) that gives a km figure plus service wording, e.g.
- * "DF49RC GP current 285000km Next 300 000km or 28.10.27". Treated as an
- * add-service message only if the parser then finds real fields in it.
+ * "DF49RC GP current 285000km Next 300 000km or 28.10.27" — or the same shape
+ * without the unit at all, e.g. "CURRENT 217262 / NEXT 232262 OR 13.11.27"
+ * (a real message that otherwise fell through to the vehicle-cost flow,
+ * which has no mileage fields and silently dropped them — 2026-11-13).
+ * Treated as an add-service message only if the parser then finds real
+ * fields in it.
  */
-const looksLikeServiceDetails = (t: string) =>
-  !t.includes("?") && /\d\s*km\b/i.test(t) && /\b(next|service[ds]?|current|odometer)\b/i.test(t);
+const looksLikeServiceDetails = (t: string) => {
+  if (t.includes("?")) return false;
+  if (/\d\s*km\b/i.test(t) && /\b(next|service[ds]?|current|odometer)\b/i.test(t)) return true;
+  // "current" and "next" each followed by their own plausible odometer
+  // figure, even with no "km" suffix at all.
+  return /\bcurrent\b[^\d]{0,12}\d{4,7}\b/i.test(t) && /\bnext\b[^\d]{0,12}\d{4,7}\b/i.test(t);
+};
 
 const CANCEL_RE = /^\s*(cancel|stop|quit|exit|abort|nevermind|never mind)\s*[.!]*\s*$/i;
 const YES_RE = /^\s*(yes|y|yep|yeah|confirm|ok|okay|correct|save)\s*[.!]*\s*$/i;
