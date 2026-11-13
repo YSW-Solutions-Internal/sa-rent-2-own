@@ -210,6 +210,7 @@ const AUDIT_TABLE_LABELS: Record<string, string> = {
   insurance_claims: "insurance claim",
   sale_listings: "sale listing",
   profiles: "user",
+  contract_clause_templates: "contract clause",
 };
 
 const AUDIT_ACTION_LABELS: Record<string, string> = {
