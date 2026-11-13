@@ -1,7 +1,8 @@
 /**
  * Points .env.local at the Supabase preview branch database for a git branch.
- * `npm run dev` does this by itself when .env.local is wrong or stale; run this to switch on
- * purpose, e.g. to another branch's database.
+ * `npm run dev` does this by itself for the git branch you are on. Naming another branch here
+ * only sticks while your own git branch has no preview database, because `npm run dev` switches
+ * back to your branch's when it has one.
  *
  * Usage:
  *   npm run env:preview              (uses the git branch you are on)

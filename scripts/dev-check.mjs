@@ -53,23 +53,27 @@ export async function checkDevEnv({ url, anonKey, fetchImpl = fetch }) {
 }
 
 /**
- * What `npm run dev` runs first: checks the Supabase target (`check`, i.e. checkDevEnv) and, when
- * it is blocked, switches .env.local to the current git branch's preview database (`point`, i.e.
- * pointEnvAtPreview) and checks again. A working setup is never rewritten, so a deliberate choice
- * of another branch's database survives. Returns { level, message } like checkDevEnv.
+ * What `npm run dev` runs first. .env.local follows the git branch: it is switched to the current
+ * branch's preview database (`point`, i.e. pointEnvAtPreview), because another branch's database
+ * may lack this branch's migrations. When that isn't possible (no preview for this branch, no or
+ * expired token, offline) it falls back to the database already configured, if `check`
+ * (checkDevEnv) accepts it. Returns { level, message } like checkDevEnv.
  */
 export async function ensureDevEnv({ env, check, point }) {
-  const first = await check(env);
-  if (first.level !== "block") return first;
-
   let pointed;
   try {
     pointed = await point();
   } catch (error) {
-    return { level: "block", message: `${first.message}\n\nSwitching automatically failed: ${error.message}` };
+    const existing = await check(env);
+    if (existing.level === "block") {
+      return { level: "block", message: `${existing.message}\n\nSwitching automatically failed: ${error.message}` };
+    }
+    const notice = `Could not match .env.local to this git branch, so it stays on the database it already points at:\n${error.message}`;
+    return { level: "warn", message: existing.message ? `${notice}\n${existing.message}` : notice };
   }
 
-  const second = await check({ url: pointed.url, anonKey: pointed.anonKey });
+  const result = await check({ url: pointed.url, anonKey: pointed.anonKey });
+  if (!pointed.changed) return result;
   const switched = `.env.local now points at this branch's preview database (${pointed.projectRef}).`;
-  return { level: second.level, message: second.message ? `${switched}\n${second.message}` : switched };
+  return { level: result.level, message: result.message ? `${switched}\n${result.message}` : switched };
 }

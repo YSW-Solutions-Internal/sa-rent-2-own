@@ -9,10 +9,12 @@ release. Why it works this way: [docs/adr/0001-per-pr-preview-databases.md](docs
 1. Branch off `main`: `git switch main && git pull && git switch -c feat/<name>` (or `fix/<name>`).
 2. Push and open a **draft PR** straight away. Supabase creates your preview database, then the
    "Preview Refresh" action copies masked prod data into it. Vercel posts the preview URL on the PR.
-3. Run `npm run dev`. It first checks `.env.local`: if that points at prod, a deleted preview
-   database or nothing, it switches the three Supabase values to your git branch's preview
-   database, and otherwise leaves the file alone. To switch on purpose (e.g. to a teammate's
-   branch): `npm run env:preview -- <branch>`. Both need your own `SUPABASE_ACCESS_TOKEN` in
+3. Run `npm run dev`. `.env.local` follows your git branch: each start switches the three
+   Supabase values to the current branch's preview database, so to test a teammate's work, check
+   out their branch and restart. If the branch has no preview database (or the token is missing
+   or expired) it warns and stays on the database already configured, unless that is prod or
+   deleted, which stops it. `npm run env:preview` does the switch without starting the app. Both
+   need your own `SUPABASE_ACCESS_TOKEN` in
    `.env.local`: a Supabase personal access token scoped to the prod project with Development
    Branches: Read, API Keys: Read and API Key Secrets: Read, 90-day expiry. It can also read
    prod's keys, so treat it like the prod database password. Without a token: Supabase dashboard

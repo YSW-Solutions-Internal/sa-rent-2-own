@@ -65,52 +65,50 @@ describe("checkDevEnv", () => {
 describe("ensureDevEnv", () => {
   const ok = { level: "ok", message: "" };
   const block = { level: "block", message: "stale" };
-  const pointed = { url: PREVIEW_URL, anonKey: "new", projectRef: "abcdefghijklmnopqrst" };
+  const pointed = { url: PREVIEW_URL, anonKey: "new", projectRef: "abcdefghijklmnopqrst", changed: true };
+  const noPreview = async () => {
+    throw new Error("No Supabase preview branch found");
+  };
 
-  it("leaves a working setup alone", async () => {
-    let pointCalls = 0;
-    const result = await ensureDevEnv({
-      env: { url: PREVIEW_URL, anonKey: "k" },
-      check: async () => ok,
-      point: async () => (pointCalls++, pointed),
-    });
-    expect(result.level).toBe("ok");
-    expect(pointCalls).toBe(0);
-  });
-
-  it("switches to the current branch's preview when the setup is blocked, then re-checks the new values", async () => {
+  it("follows the git branch: switches to its preview database and checks the new values", async () => {
     const checked = [];
     const result = await ensureDevEnv({
-      env: { url: PROD_URL, anonKey: "k" },
-      check: async (env) => (checked.push(env.anonKey), env.anonKey === "new" ? ok : block),
+      env: { url: "https://otherbranchotherbran.supabase.co", anonKey: "k" },
+      check: async (env) => (checked.push(env.anonKey), ok),
       point: async () => pointed,
     });
-    expect(checked).toEqual(["k", "new"]);
+    expect(checked).toEqual(["new"]);
     expect(result.level).toBe("ok");
     expect(result.message).toMatch(/now points at/);
   });
 
-  it("stays blocked, with both reasons, when switching fails", async () => {
+  it("says nothing when the file already matched the git branch", async () => {
+    const result = await ensureDevEnv({
+      env: { url: PREVIEW_URL, anonKey: "new" },
+      check: async () => ok,
+      point: async () => ({ ...pointed, changed: false }),
+    });
+    expect(result).toEqual(ok);
+  });
+
+  it("starts on the database already configured, with a warning, when the branch has no preview", async () => {
+    const result = await ensureDevEnv({
+      env: { url: PREVIEW_URL, anonKey: "k" },
+      check: async () => ok,
+      point: noPreview,
+    });
+    expect(result.level).toBe("warn");
+    expect(result.message).toMatch(/No Supabase preview branch found/);
+  });
+
+  it("stays blocked, with both reasons, when it cannot switch and the configured database is unusable", async () => {
     const result = await ensureDevEnv({
       env: { url: PROD_URL, anonKey: "k" },
       check: async () => block,
-      point: async () => {
-        throw new Error("No Supabase preview branch found");
-      },
+      point: noPreview,
     });
     expect(result.level).toBe("block");
     expect(result.message).toMatch(/stale/);
     expect(result.message).toMatch(/No Supabase preview branch found/);
-  });
-
-  it("does not switch on a warning", async () => {
-    let pointCalls = 0;
-    const result = await ensureDevEnv({
-      env: { url: PREVIEW_URL, anonKey: "k" },
-      check: async () => ({ level: "warn", message: "offline" }),
-      point: async () => (pointCalls++, pointed),
-    });
-    expect(result.level).toBe("warn");
-    expect(pointCalls).toBe(0);
   });
 });

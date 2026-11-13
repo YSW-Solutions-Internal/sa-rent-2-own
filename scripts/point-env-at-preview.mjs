@@ -15,7 +15,7 @@ export function currentGitBranch() {
 
 /**
  * Rewrites the three Supabase values in .env.local to the preview branch database of
- * `gitBranch`, leaving every other line alone. Returns { url, anonKey, projectRef, status }.
+ * `gitBranch`, leaving every other line alone. Returns { url, anonKey, projectRef, status, changed }.
  * Throws an Error whose message says what to do when it can't.
  *
  * `token` is a Supabase personal access token scoped to the prod project with
@@ -66,14 +66,13 @@ export async function pointEnvAtPreview({ token, gitBranch }) {
 
   const url = `https://${branch.project_ref}.supabase.co`;
   const before = existsSync(ENV_FILE) ? readFileSync(ENV_FILE, "utf8") : "";
-  writeFileSync(
-    ENV_FILE,
-    upsertEnv(before, {
-      NEXT_PUBLIC_SUPABASE_URL: url,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
-      SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
-    })
-  );
+  const after = upsertEnv(before, {
+    NEXT_PUBLIC_SUPABASE_URL: url,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
+    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
+  });
+  const changed = after !== before;
+  if (changed) writeFileSync(ENV_FILE, after);
 
-  return { url, anonKey, projectRef: branch.project_ref, status: branch.status };
+  return { url, anonKey, projectRef: branch.project_ref, status: branch.status, changed };
 }
