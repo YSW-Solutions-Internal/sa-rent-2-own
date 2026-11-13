@@ -46,7 +46,7 @@ export async function pointEnvAtPreview({ token, gitBranch }) {
   if (!branch) {
     throw new Error(
       `No Supabase preview branch found for git branch "${gitBranch}".\n` +
-        "Push the branch (or open a draft PR) and wait for it under Supabase → Branches, then try again."
+        "Open a draft PR for the branch and wait for it under Supabase → Branches, then try again."
     );
   }
   if (branch.project_ref === PROD_PROJECT_REF) {
