@@ -37,6 +37,10 @@ if [[ -n "${PREVIEW_REFRESH_TEST_REF:-}" ]]; then
   BRANCH_REF="$PREVIEW_REFRESH_TEST_REF" # test hook: exercises the guard without the API
 else
   : "${SUPABASE_ACCESS_TOKEN:?}"
+  if [[ ! "$SUPABASE_PROD_PROJECT_REF" =~ ^[a-z]{20}$ ]]; then
+    echo "The SUPABASE_PROD_PROJECT_REF secret must be only the 20 lowercase letters of prod's project ID (not the dashboard URL, no spaces or line breaks)." >&2
+    exit 1
+  fi
   BRANCH_REF=""
   for _ in $(seq 1 45); do
     INFO="$(api "/projects/$SUPABASE_PROD_PROJECT_REF/branches" \

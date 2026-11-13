@@ -22,9 +22,7 @@ jobs:
     timeout-minutes: 30
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      # Prod's project ref is public (it is in the app's Supabase URL), so it lives here, not in
-      # a secret that can be mistyped. Same value as in scripts/guard-prod.mjs.
-      SUPABASE_PROD_PROJECT_REF: srxleeenohgazegtyujb
+      SUPABASE_PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
       PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
     steps:
       - uses: actions/checkout@v4
