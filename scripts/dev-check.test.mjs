@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkDevEnv } from "./dev-check.mjs";
+import { checkDevEnv, ensureDevEnv } from "./dev-check.mjs";
 
 const PROD_URL = "https://srxleeenohgazegtyujb.supabase.co";
 const PREVIEW_URL = "https://abcdefghijklmnopqrst.supabase.co";
@@ -39,11 +39,10 @@ describe("checkDevEnv", () => {
     expect(called).toBe(false);
   });
 
-  it("blocks a deleted preview database and mentions the token", async () => {
+  it("blocks a deleted preview database", async () => {
     const result = await checkDevEnv({ url: PREVIEW_URL, anonKey: "k", fetchImpl: previewGone });
     expect(result.level).toBe("block");
     expect(result.message).toMatch(/no longer exists/);
-    expect(result.message).toMatch(/SUPABASE_ACCESS_TOKEN/);
   });
 
   it("blocks when the keys are rejected", async () => {
@@ -60,5 +59,58 @@ describe("checkDevEnv", () => {
   it("only warns on an unexpected status, e.g. a branch still starting up", async () => {
     const result = await checkDevEnv({ url: PREVIEW_URL, anonKey: "k", fetchImpl: respond(503) });
     expect(result.level).toBe("warn");
+  });
+});
+
+describe("ensureDevEnv", () => {
+  const ok = { level: "ok", message: "" };
+  const block = { level: "block", message: "stale" };
+  const pointed = { url: PREVIEW_URL, anonKey: "new", projectRef: "abcdefghijklmnopqrst" };
+
+  it("leaves a working setup alone", async () => {
+    let pointCalls = 0;
+    const result = await ensureDevEnv({
+      env: { url: PREVIEW_URL, anonKey: "k" },
+      check: async () => ok,
+      point: async () => (pointCalls++, pointed),
+    });
+    expect(result.level).toBe("ok");
+    expect(pointCalls).toBe(0);
+  });
+
+  it("switches to the current branch's preview when the setup is blocked, then re-checks the new values", async () => {
+    const checked = [];
+    const result = await ensureDevEnv({
+      env: { url: PROD_URL, anonKey: "k" },
+      check: async (env) => (checked.push(env.anonKey), env.anonKey === "new" ? ok : block),
+      point: async () => pointed,
+    });
+    expect(checked).toEqual(["k", "new"]);
+    expect(result.level).toBe("ok");
+    expect(result.message).toMatch(/now points at/);
+  });
+
+  it("stays blocked, with both reasons, when switching fails", async () => {
+    const result = await ensureDevEnv({
+      env: { url: PROD_URL, anonKey: "k" },
+      check: async () => block,
+      point: async () => {
+        throw new Error("No Supabase preview branch found");
+      },
+    });
+    expect(result.level).toBe("block");
+    expect(result.message).toMatch(/stale/);
+    expect(result.message).toMatch(/No Supabase preview branch found/);
+  });
+
+  it("does not switch on a warning", async () => {
+    let pointCalls = 0;
+    const result = await ensureDevEnv({
+      env: { url: PREVIEW_URL, anonKey: "k" },
+      check: async () => ({ level: "warn", message: "offline" }),
+      point: async () => (pointCalls++, pointed),
+    });
+    expect(result.level).toBe("warn");
+    expect(pointCalls).toBe(0);
   });
 });
