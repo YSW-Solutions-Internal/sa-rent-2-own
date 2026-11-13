@@ -131,8 +131,18 @@ async function handleInbound(params: Record<string, string>) {
     }
 
     if (!question) {
+      // Not the stranger/abuse "notice" throttle (this is an approved user
+      // genuinely trying something unsupported) — reply plainly every time.
+      // A second such message within the same hour as an earlier rejection
+      // or rate-limit notice used to fall silent here while still being
+      // marked "answered", because notice() no-ops once that throttle has
+      // already fired once that hour.
+      if (Number(params.NumMedia ?? "0") > 0) {
+        const text = "I can only read text messages for now.";
+        await sendWhatsAppMessage(from, text);
+        await recordOutbound({ phone: key, profileId: profile.id, body: text, kind: "answer" });
+      }
       await markInbound(inboundId, "answered", profile.id);
-      if (Number(params.NumMedia ?? "0") > 0) await notice("I can only read text messages for now.", profile.id);
       return;
     }
 
