@@ -12,6 +12,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "env:preview": "node --env-file-if-exists=.env.local scripts/env-preview.mjs",
     "import:current-fleet": "node --env-file=.env.local scripts/import-current-fleet.mjs",
     "import:current-fleet:dry-run": "node --env-file=.env.local scripts/import-current-fleet.mjs --dry-run"
   },
